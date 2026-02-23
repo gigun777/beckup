@@ -688,3 +688,7 @@ html, body { height: 100%; }
 .sdo-backup-import-table td:first-child{ width:140px; font-weight:600; }
 .sdo-backup-import-json summary{ cursor:pointer; font-size:12px; font-weight:600; }
 .sdo-backup-import-json pre{ max-height:280px; overflow:auto; border:1px solid var(--border,#e5e5e5); background:var(--panel,#fff); padding:8px; border-radius:8px; font-size:11px; }
+
+
+.sdo-backup-manager{ min-width:min(90vw,640px); max-width:min(90vw,640px); display:grid; gap:10px; }
+.sdo-backup-manager-desc{ margin:0; opacity:.8; }
