@@ -1,0 +1,111 @@
+/*
+  SDO Theme Tokens
+  - Default: light
+  - Dark mode: set <html data-theme="dark">
+*/
+
+:root {
+  --sdo-bg: #f6f7f8;
+  --sdo-panel: #ffffff;
+  --sdo-panel-2: #f6f6f6;
+  --sdo-text: #111111;
+  --sdo-muted: #666666;
+  --sdo-border: #dddddd;
+
+  --sdo-accent: #d8efdb;
+  --sdo-btn: #ececec;
+  --sdo-btn-2: #e9e9e9;
+  --sdo-btn-primary: #111111;
+  --sdo-btn-primary-text: #ffffff;
+
+  --sdo-input-bg: #ffffff;
+  --sdo-input-border: #d4d4d4;
+
+  --sdo-overlay: rgba(0, 0, 0, 0.25);
+  --sdo-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+}
+
+html[data-theme="dark"] {
+  /* Softer dark theme: grey surfaces, low contrast (no pure black) */
+  /* Lightened dark palette (closer to graphite than black) */
+  /* Lighter dark background (more "grey" than "black") */
+  --sdo-bg: #4a4f57;
+  --sdo-panel: #535965;
+  --sdo-panel-2: #4f5561;
+  --sdo-text: #e2e6ec;
+  --sdo-muted: #b6beca;
+  --sdo-border: #666e7c;
+
+  --sdo-accent: #3b4440;
+  --sdo-btn: #5a606d;
+  /* Table header / secondary surfaces */
+  --sdo-btn-2: #4b515c;
+  --sdo-btn-primary: #687189;
+  --sdo-btn-primary-text: #eef2f7;
+
+  --sdo-input-bg: #4a4f57;
+  --sdo-input-border: #747e92;
+
+  --sdo-overlay: rgba(0, 0, 0, 0.32);
+  --sdo-shadow: 0 18px 55px rgba(0, 0, 0, 0.28);
+}
+
+ /* Minimal application of tokens (does not require refactor of all CSS at once) */
+html, body {
+  background: var(--sdo-bg) !important;
+  color: var(--sdo-text);
+}
+
+.sdo-panels, .sdo-settings, .sdo-table {
+  background: var(--sdo-panel) !important;
+}
+
+.sdo-nav-btn {
+  background: var(--sdo-btn) !important;
+  color: var(--sdo-text) !important;
+}
+
+.sdo-nav-main {
+  background: var(--sdo-accent) !important;
+}
+
+.sdo-add-module,
+.sdo-module-button {
+  background: var(--sdo-btn-2) !important;
+  color: var(--sdo-text) !important;
+}
+
+/* Add modal tokens */
+.sdo-add-modal-overlay { background: var(--sdo-overlay) !important; }
+.sdo-add-modal-window { background: var(--sdo-panel-2) !important; box-shadow: var(--sdo-shadow) !important; }
+.sdo-add-modal-label { color: var(--sdo-text) !important; }
+.sdo-add-modal-hint { color: var(--sdo-muted) !important; }
+.sdo-add-modal-input {
+  background: var(--sdo-input-bg) !important;
+  border-color: var(--sdo-input-border) !important;
+  color: var(--sdo-text) !important;
+}
+
+.sdo-btn-primary { background: var(--sdo-btn-primary) !important; color: var(--sdo-btn-primary-text) !important; }
+.sdo-btn-secondary { background: var(--sdo-btn) !important; border-color: var(--sdo-border) !important; color: var(--sdo-text) !important; }
+
+
+/* Table theming */
+.sdo-table {
+  background: var(--sdo-panel) !important;
+  border-color: var(--sdo-border) !important;
+}
+.sdo-table th, .sdo-table td {
+  border-bottom-color: var(--sdo-border) !important;
+  color: var(--sdo-text) !important;
+}
+.sdo-table thead th {
+  background: var(--sdo-btn-2) !important;
+}
+.sdo-col-idx { color: var(--sdo-muted) !important; }
+
+/* Row action buttons */
+.sdo-row-transfer, .sdo-row-delete {
+  background: var(--sdo-btn) !important;
+  color: var(--sdo-text) !important;
+}

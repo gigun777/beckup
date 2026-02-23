@@ -1,0 +1,106 @@
+<!-- TransferUI modals markup: include once -->
+<div id="dvTransferSettingsOverlay" class="dv-modal-overlay" aria-hidden="true">
+  <div class="dv-modal" role="dialog" aria-modal="true" aria-labelledby="dvTransferSettingsTitle">
+    <div class="dv-modal-header">
+      <div>
+        <div class="dv-modal-title" id="dvTransferSettingsTitle">Налаштування → Перенесення</div>
+        <div class="dv-modal-subtitle" id="dvTransferSettingsSubtitle">Шаблони перенесення (1 маршрут = 1 цільова колонка)</div>
+      </div>
+      <button class="dv-modal-close" data-dv-close="settings" title="Закрити">✕</button>
+    </div>
+    <div class="dv-modal-body">
+      <div class="dv-settings-grid">
+        <div class="dv-panel">
+          <div class="dv-panel-h">Шаблони</div>
+          <div class="dv-panel-b">
+            <div id="dvTplList" class="dv-list"></div>
+            <div class="dv-row" style="margin-top:12px;">
+              <button id="dvTplAdd" class="dv-btn">+ Додати шаблон</button>
+              <button id="dvTplDel" class="dv-btn dv-btn-danger">🗑 Видалити</button>
+            </div>
+          </div>
+        </div>
+        <div class="dv-panel">
+          <div class="dv-panel-h">Редактор шаблону</div>
+          <div class="dv-panel-b">
+            <div class="dv-row" style="justify-content:space-between; gap:14px;">
+              <div class="dv-col" style="flex:1; min-width:260px;">
+                <div class="dv-label">Назва</div>
+                <input id="dvTplName" class="dv-input" placeholder="Напр.: Вхідні → Архів" />
+              </div>
+              <div class="dv-col" style="flex:1; min-width:260px;">
+                <div class="dv-label">З листа</div>
+                <select id="dvFromSheet" class="dv-select"></select>
+              </div>
+              <div class="dv-col" style="min-width:40px; align-items:center; justify-content:flex-end;">
+                <div class="dv-label" style="visibility:hidden;">→</div>
+                <div style="height:34px; display:flex; align-items:center; font-weight:900;">→</div>
+              </div>
+              <div class="dv-col" style="flex:1; min-width:260px;">
+                <div class="dv-label">До листа</div>
+                <select id="dvToSheet" class="dv-select"></select>
+              </div>
+            </div>
+            <div class="dv-hint" id="dvTplHint"></div>
+            <div style="margin-top:10px; display:flex; align-items:center; justify-content:space-between;">
+              <div class="dv-label" style="font-size:13px; color:#111;">Маршрути</div>
+              <button id="dvRouteAdd" class="dv-btn">+ Додати маршрут</button>
+            </div>
+            <div id="dvRoutes"></div>
+          </div>
+        </div>
+      </div>
+      <div class="dv-alert" id="dvSettingsMsg" style="display:none;"></div>
+    </div>
+    <div class="dv-modal-footer">
+      <button class="dv-btn" data-dv-close="settings">Скасувати</button>
+      <button id="dvSettingsReload" class="dv-btn">↻ Перезавантажити</button>
+      <button id="dvSettingsSave" class="dv-btn dv-btn-primary">💾 Зберегти</button>
+    </div>
+  </div>
+</div>
+
+<div id="dvTransferExecOverlay" class="dv-modal-overlay" aria-hidden="true">
+  <div class="dv-modal dv-sm" role="dialog" aria-modal="true" aria-labelledby="dvTransferExecTitle">
+    <div class="dv-modal-header">
+      <div>
+        <div class="dv-modal-title" id="dvTransferExecTitle">Перенесення запису</div>
+        <div class="dv-modal-subtitle" id="dvTransferExecSubtitle"></div>
+      </div>
+      <button class="dv-modal-close" data-dv-close="exec" title="Закрити">✕</button>
+    </div>
+    <div class="dv-modal-body">
+      <div class="dv-row" style="justify-content:space-between;">
+        <div class="dv-col" style="flex:1; min-width:260px;">
+          <div class="dv-label">Шаблон</div>
+          <select id="dvExecTemplate" class="dv-select"></select>
+        </div>
+      </div>
+      <div class="dv-alert" id="dvExecInfo" style="margin-top:12px;"></div>
+      <div style="margin-top:10px;">
+        <div class="dv-label" style="font-size:13px; color:#111;">Попередній перегляд</div>
+        <table class="dv-preview-table" style="margin-top:8px;">
+          <thead>
+            <tr>
+              <th style="width:34%;">Звідки (джерела)</th>
+              <th style="width:16%;">Операція</th>
+              <th style="width:22%;">Куди (ціль)</th>
+              <th>Результат</th>
+            </tr>
+          </thead>
+          <tbody id="dvExecPreview"></tbody>
+        </table>
+        <div class="dv-hint">Перевірте відповідність колонок та результат перед підтвердженням.</div>
+      </div>
+      <div style="margin-top:12px; display:flex; flex-direction:column; gap:8px;">
+        <label class="dv-checkbox"><input id="dvExecGoToTarget" type="checkbox" checked /> Після перенесення перейти до листа-призначення</label>
+        <label class="dv-checkbox"><input id="dvExecCloseOnSuccess" type="checkbox" checked /> Закрити вікно після успіху</label>
+      </div>
+      <div class="dv-alert" id="dvExecMsg" style="display:none;"></div>
+    </div>
+    <div class="dv-modal-footer">
+      <button class="dv-btn" data-dv-close="exec">Скасувати</button>
+      <button id="dvExecApply" class="dv-btn dv-btn-primary">Перенести</button>
+    </div>
+  </div>
+</div>
