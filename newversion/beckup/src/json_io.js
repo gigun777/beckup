@@ -1,4 +1,5 @@
 import { createSheetJsonPayload } from './sheet_json.js';
+import { normalizeBackupBundle, normalizeJournalPayload } from './schema_guard.js';
 
 /**
  * Export all backup data from source adapters (single source of truth = DB/storage).
@@ -64,6 +65,33 @@ export async function exportFullJsonBackupFromSource({
  * - if some sections are missing/corrupt, journals can still be restored.
  */
 export async function importFullJsonBackupToSource(payload, { target, mode = 'merge' } = {}) {
+  if (!target) throw new Error('target adapter is required');
+
+  const normalized = normalizeBackupBundle(payload);
+
+  const report = {
+    journals: { applied: 0, skipped: 0, warnings: [], errors: [] },
+    settings: { applied: false, warnings: [], errors: [] },
+    navigation: { applied: false, warnings: [], errors: [] },
+    transfer: { applied: false, warnings: [], errors: [] },
+    meta: { format: normalized.format, formatVersion: normalized.formatVersion }
+  };
+
+  const journals = normalized?.sections?.journals?.items;
+  if (Array.isArray(journals)) {
+    for (const j of journals) {
+      try {
+        const checked = normalizeJournalPayload(j);
+        if (!checked.ok) {
+          report.journals.skipped += 1;
+          report.journals.warnings.push(`Skipped journal: ${checked.reason}`);
+          continue;
+        }
+        const journalKey = checked.payload.meta.key;
+        await target.saveJournalPayload?.(journalKey, checked.payload, { mode });
+        report.journals.applied += 1;
+      } catch (e) {
+        report.journals.errors.push(`Journal import error: ${e?.message || String(e)}`);
   if (!payload || typeof payload !== 'object') throw new Error('Invalid backup payload');
   if (!target) throw new Error('target adapter is required');
 
@@ -101,6 +129,7 @@ export async function importFullJsonBackupToSource(payload, { target, mode = 'me
       report.settings.applied = true;
     }
   } catch (e) {
+    report.settings.errors.push(e?.message || String(e));
     report.settings.warnings.push(e?.message || String(e));
   }
 
@@ -110,6 +139,7 @@ export async function importFullJsonBackupToSource(payload, { target, mode = 'me
       report.navigation.applied = true;
     }
   } catch (e) {
+    report.navigation.errors.push(e?.message || String(e));
     report.navigation.warnings.push(e?.message || String(e));
   }
 
@@ -119,6 +149,7 @@ export async function importFullJsonBackupToSource(payload, { target, mode = 'me
       report.transfer.applied = true;
     }
   } catch (e) {
+    report.transfer.errors.push(e?.message || String(e));
     report.transfer.warnings.push(e?.message || String(e));
   }
 

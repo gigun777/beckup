@@ -46,6 +46,11 @@ export function createBeckupProvider({
           ...report.journals.warnings,
           ...report.settings.warnings,
           ...report.navigation.warnings,
+          ...report.transfer.warnings,
+          ...report.journals.errors,
+          ...report.settings.errors,
+          ...report.navigation.errors,
+          ...report.transfer.errors
           ...report.transfer.warnings
         ],
         report

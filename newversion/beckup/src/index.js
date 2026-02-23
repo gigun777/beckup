@@ -10,6 +10,7 @@ import { parseAnyXlsx, importAnyExcelToRecords } from './excel_io.js';
 import { createNewversionSourceAdapter } from './source_newversion.js';
 import { createBeckupProvider } from './provider_newversion.js';
 import { suggestColumnMapping, buildImportPlan, applyImportPlanToRows } from './import_constructor_core.js';
+import { normalizeBackupBundle, normalizeJournalPayload } from './schema_guard.js';
 
 function toBytes(x) {
   if (x instanceof Uint8Array) return x;
@@ -70,6 +71,9 @@ export {
   createBeckupProvider,
   suggestColumnMapping,
   buildImportPlan,
+  applyImportPlanToRows,
+  normalizeBackupBundle,
+  normalizeJournalPayload
   applyImportPlanToRows
   createBeckupProvider
   createNewversionSourceAdapter
