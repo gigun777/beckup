@@ -1,0 +1,42 @@
+{
+  "name": "@sdo/core",
+  "version": "2.0.0",
+  "type": "module",
+  "description": "Headless-first SEDO core with ESM plugin system, navigation model, and backup APIs",
+  "exports": {
+    ".": "./dist/index.js",
+    "./styles.css": "./dist/styles.css",
+    "./ui": "./dist/ui/index.js",
+    "./ui/theme.css": "./dist/ui/theme.css",
+    "./ui/styles.css": "./dist/ui/styles.css",
+    "./ui/theme": "./dist/ui/theme.js",
+    "./ui/manager": "./dist/ui/ui_manager.js",
+    "./ui/controls": "./dist/ui/ui_controls.js",
+    "./ui/modal": "./dist/ui/ui_modal.js",
+    "./ui/form": "./dist/ui/ui_form.js",
+    "./ui/toast": "./dist/ui/ui_toast.js",
+    "./ui/backup": "./dist/ui/ui_backup.js",
+    "./ui/bootstrap": "./dist/ui/ui_bootstrap.js",
+    "./ui/core": "./dist/ui/ui_core.js",
+    "./ui/settings/init": "./dist/ui/settings/settings_init.js",
+    "./ui/settings/shell": "./dist/ui/settings/settings_shell_modal.js",
+    "./ui/settings/registry": "./dist/ui/settings/settings_registry.js",
+    "./ui/settings/state": "./dist/ui/settings/settings_state.js",
+    "./ui/settings/features/table": "./dist/ui/settings/features_table_settings.js",
+    "./ui/settings/features/uxui": "./dist/ui/settings/features_uxui_settings.js",
+    "./ui/settings/features/backup": "./dist/ui/settings/features_backup_settings.js",
+    "./ui/*": "./dist/ui/*.js",
+    "./ui/settings/*": "./dist/ui/settings/*.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "docs"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test"
+  }
+}

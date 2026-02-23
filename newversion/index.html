@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>SDO</title>
+
+    <!-- THEME FIRST -->
+    <link rel="stylesheet" href="./dist/ui/theme.css" />
+    <link rel="stylesheet" href="./dist/styles.css" />
+    <link rel="stylesheet" href="./dist/ui/sws_v2/sws_modal.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <!-- SettingsWindowSystem v2 root markup -->
+    <div id="swsOverlay" class="sws-overlay" aria-hidden="true">
+      <div id="swsWindow" class="sws-window sws-desktop" role="dialog" aria-modal="true" aria-label="Налаштування">
+        <div id="swsStack" class="sws-stack"></div>
+      </div>
+    </div>
+
+    <script src="./dist/ui/sws_v2/sws_modal.js"></script>
+    <script src="./dist/ui/sws_v2/sws_quicknav.js"></script>
+
+    <script type="module">
+      import * as sdoCore from "./dist/index.js";
+      import { createModuleManagerUI } from "./dist/ui/ui_core.js";
+      import { bootstrap } from "./dist/ui/ui_bootstrap_esm.js";
+
+      // Optional: demo/reference module (keeps behavior close to existing demo bootstrap)
+      // If not present or fails, core still starts.
+      let tableModule = null;
+      try {
+        const ref = await import("./docs/reference-module.mjs");
+        tableModule = ref?.default ?? null;
+      } catch (e) {
+        console.warn("reference-module.mjs not loaded:", e);
+      }
+
+      const modules = [];
+      if (tableModule) modules.push(tableModule);
+
+      if (typeof sdoCore.createTableStoreModule === "function") {
+        modules.push(sdoCore.createTableStoreModule());
+      }
+      if (typeof sdoCore.createTableRendererModule === "function") {
+        modules.push(sdoCore.createTableRendererModule({ schema: { id: "fallback", fields: [] } }));
+      }
+
+      // Single, deterministic UI startup
+      await bootstrap({ storage: window.localStorage });
+
+      const appNode = document.getElementById("app");
+
+      const sdo = sdoCore.createSEDO({
+        // Persist everything across reloads
+        storage: (typeof sdoCore.createLocalStorageStorage === "function")
+          ? sdoCore.createLocalStorageStorage('sdo')
+          : window.localStorage,
+        mount: appNode,
+        createUI: createModuleManagerUI,
+        modules
+      });
+
+      if (sdo && typeof sdo.start === "function") {
+        await sdo.start();
+      }
+
+      window.sdo = sdo; // debug
+    </script></body>
+</html>
