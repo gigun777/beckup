@@ -13,7 +13,6 @@ import './settings/settings_registry.js';
 import './settings/settings_state.js';
 import './settings/features_table_settings.js';
 import './settings/features_uxui_settings.js';
-import './settings/features_backup_settings.js';
 import './settings/settings_init.js';
 // Legacy settings shell modal removed (SWS v2 is the only settings UI)
 
@@ -1429,7 +1428,6 @@ async function openTemplatesManager() {
       items: [
         { label: 'Журнали', description: 'Шаблони, колонки, поля', onOpen: ()=>openJournalsMenu() },
         { label: 'UX|UI', description: '', onOpen: ()=> SW.push({ title:'UX|UI', subtitle:'', content: (ctx)=>ctx.ui.card({title:'UX|UI', description:'В розробці'}) }) },
-        { label: 'Backup', description: '', onOpen: ()=> SW.push({ title:'Backup', subtitle:'', content: (ctx)=>ctx.ui.card({title:'Backup', description:'В розробці'}) }) },
         { label: 'Перенесення', description: 'Шаблони перенесення', onOpen: ()=> openTransferTemplatesScreen() },
       ]
     });

@@ -13,7 +13,6 @@ import './settings/settings_registry.js';
 import './settings/settings_state.js';
 import './settings/features_table_settings.js';
 import './settings/features_uxui_settings.js';
-import './settings/features_backup_settings.js';
 import './settings/settings_init.js';
 // Legacy settings shell modal removed (SWS v2 is the only settings UI)
 
@@ -502,6 +501,402 @@ export function createModuleManagerUI({ sdo, mount, api }) {
     title: 'День/Ніч',
     onClick: () => { try { window.UITheme?.toggleTheme?.(); } catch (_) {} }
   }, ['◐']);
+
+  const backupButton = h('button', {
+    class: 'sdo-icon-btn sdo-backup-btn',
+    title: 'Backup',
+    onClick: () => openBackupModal()
+  }, ['⛁']);
+
+// -----------------------------
+  // Backup / Import / Export modal
+  // -----------------------------
+  function openBackupModal() {
+    const sdoInst = sdo || window.sdo;
+    if (!sdoInst) {
+      window.UI?.toast?.show?.('SDO instance not found (window.sdo)', { type: 'error' });
+      return;
+    }
+
+    const getActiveJournalId = () => {
+      try {
+        return sdoInst.getState?.().activeJournalId || null;
+      } catch {
+        return null;
+      }
+    };
+
+    const getActiveJournalTitle = () => {
+      const st = sdoInst.getState?.() || {};
+      const id = st.activeJournalId;
+      const j = (st.journals || []).find((x) => x && x.id === id) || null;
+      return j?.title || j?.name || (id ? String(id) : '—');
+    };
+
+    // --- minimal ZIP (STORE) helpers ---
+    // Supports: a handful of files, ASCII names. Enough for backup.json.
+    const enc = new TextEncoder();
+    const dec = new TextDecoder();
+
+    const crcTable = (() => {
+      const table = new Uint32Array(256);
+      for (let i = 0; i < 256; i++) {
+        let c = i;
+        for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+        table[i] = c >>> 0;
+      }
+      return table;
+    })();
+    function crc32(u8) {
+      let c = 0xFFFFFFFF;
+      for (let i = 0; i < u8.length; i++) c = crcTable[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
+      return (c ^ 0xFFFFFFFF) >>> 0;
+    }
+    function u16(v) { const a = new Uint8Array(2); new DataView(a.buffer).setUint16(0, v, true); return a; }
+    function u32(v) { const a = new Uint8Array(4); new DataView(a.buffer).setUint32(0, v >>> 0, true); return a; }
+
+    function zipStore(files) {
+      // files: [{name, dataU8}]
+      let offset = 0;
+      const localParts = [];
+      const centralParts = [];
+
+      for (const f of files) {
+        const nameU8 = enc.encode(f.name);
+        const dataU8 = f.dataU8;
+        const crc = crc32(dataU8);
+
+        // Local file header
+        const local = [
+          u32(0x04034b50), // sig
+          u16(20), // ver
+          u16(0), // flags
+          u16(0), // method=store
+          u16(0), // mtime
+          u16(0), // mdate
+          u32(crc),
+          u32(dataU8.length),
+          u32(dataU8.length),
+          u16(nameU8.length),
+          u16(0),
+          nameU8,
+          dataU8,
+        ];
+        localParts.push(new Blob(local));
+
+        // Central directory header
+        const central = [
+          u32(0x02014b50),
+          u16(20),
+          u16(20),
+          u16(0),
+          u16(0),
+          u16(0),
+          u16(0),
+          u32(crc),
+          u32(dataU8.length),
+          u32(dataU8.length),
+          u16(nameU8.length),
+          u16(0),
+          u16(0),
+          u16(0),
+          u16(0),
+          u32(0),
+          u32(offset),
+          nameU8,
+        ];
+        centralParts.push(new Blob(central));
+
+        // Update offset by local header+name+data lengths
+        offset += 30 + nameU8.length + dataU8.length;
+      }
+
+      const centralSize = centralParts.reduce((sum, b) => sum + b.size, 0);
+      const centralOffset = offset;
+
+      const end = new Blob([
+        u32(0x06054b50),
+        u16(0),
+        u16(0),
+        u16(files.length),
+        u16(files.length),
+        u32(centralSize),
+        u32(centralOffset),
+        u16(0),
+      ]);
+
+      return new Blob([...localParts, ...centralParts, end], { type: 'application/zip' });
+    }
+
+    async function unzipStoreGetFile(ab, wantedName) {
+      const u8 = new Uint8Array(ab);
+      // Find End of Central Directory signature from end
+      for (let i = u8.length - 22; i >= 0 && i >= u8.length - 66000; i--) {
+        if (u8[i] === 0x50 && u8[i + 1] === 0x4b && u8[i + 2] === 0x05 && u8[i + 3] === 0x06) {
+          const dv = new DataView(u8.buffer, u8.byteOffset + i);
+          const cdSize = dv.getUint32(12, true);
+          const cdOff = dv.getUint32(16, true);
+          let p = cdOff;
+          const cdEnd = cdOff + cdSize;
+          while (p + 46 <= cdEnd) {
+            if (u8[p] !== 0x50 || u8[p + 1] !== 0x4b || u8[p + 2] !== 0x01 || u8[p + 3] !== 0x02) break;
+            const dvh = new DataView(u8.buffer, u8.byteOffset + p);
+            const nameLen = dvh.getUint16(28, true);
+            const extraLen = dvh.getUint16(30, true);
+            const commentLen = dvh.getUint16(32, true);
+            const lfhOff = dvh.getUint32(42, true);
+            const name = dec.decode(u8.slice(p + 46, p + 46 + nameLen));
+            if (name === wantedName) {
+              // Read local file header
+              const dvlfh = new DataView(u8.buffer, u8.byteOffset + lfhOff);
+              const lnameLen = dvlfh.getUint16(26, true);
+              const lextraLen = dvlfh.getUint16(28, true);
+              const compMethod = dvlfh.getUint16(8, true);
+              const compSize = dvlfh.getUint32(18, true);
+              const dataStart = lfhOff + 30 + lnameLen + lextraLen;
+              const data = u8.slice(dataStart, dataStart + compSize);
+              if (compMethod !== 0) throw new Error('ZIP: unsupported compression method');
+              return data;
+            }
+            p += 46 + nameLen + extraLen + commentLen;
+          }
+        }
+      }
+      return null;
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    }
+
+    function pickFile({ accept }) {
+      return new Promise((resolve) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = accept || '*/*';
+        // Make sure the input is in the DOM (some WebViews require this)
+        // and keep it above other overlays.
+        input.style.position = 'fixed';
+        input.style.left = '-10000px';
+        input.style.top = '0';
+        input.style.width = '1px';
+        input.style.height = '1px';
+        input.style.opacity = '0';
+        input.style.zIndex = '1000000';
+        document.body.appendChild(input);
+
+        const cleanup = () => {
+          try { input.remove(); } catch (_) {}
+        };
+
+        input.onchange = () => {
+          const file = (input.files && input.files[0]) ? input.files[0] : null;
+          cleanup();
+          resolve(file);
+        };
+
+        // If the user cancels the picker, many browsers won't fire onchange.
+        // We add a focus fallback to resolve null.
+        const onFocusBack = () => {
+          window.removeEventListener('focus', onFocusBack, true);
+          setTimeout(() => {
+            const file = (input.files && input.files[0]) ? input.files[0] : null;
+            cleanup();
+            resolve(file);
+          }, 0);
+        };
+        window.addEventListener('focus', onFocusBack, true);
+
+        input.click();
+      });
+    }
+
+    async function exportCurrentJournalJson() {
+      const id = getActiveJournalId();
+      if (!id) return window.UI?.toast?.show?.('Не обрано журнал (activeJournalId пустий)', { type: 'warning' });
+      const bundle = await sdoInst.api.tableStore.exportTableData({ journalIds: [id], includeFormatting: true });
+      const json = JSON.stringify(bundle, null, 2);
+      const fname = `journal_${getActiveJournalTitle()}_${new Date().toISOString().replace(/[:\.]/g, '-')}.json`;
+      downloadBlob(new Blob([json], { type: 'application/json' }), fname);
+      window.UI?.toast?.show?.('Експорт JSON виконано', { type: 'success' });
+    }
+
+    async function importCurrentJournalJson() {
+      const id = getActiveJournalId();
+      if (!id) return window.UI?.toast?.show?.('Не обрано журнал (activeJournalId пустий)', { type: 'warning' });
+      const file = await pickFile({ accept: 'application/json,.json' });
+      if (!file) return;
+      const text = await file.text();
+      let parsed;
+      try { parsed = JSON.parse(text); } catch { window.UI?.toast?.show?.('JSON пошкоджений', { type: 'error' }); return; }
+
+      // Force import into active journal: take the first dataset.
+      const ds0 = parsed?.datasets?.[0] || null;
+      const normalized = (parsed?.format === 'sdo-table-data') ? parsed : null;
+      let bundle = normalized;
+      if (!bundle && ds0) {
+        bundle = { format: 'sdo-table-data', formatVersion: 1, exportedAt: new Date().toISOString(), datasets: [ds0] };
+      }
+      if (!bundle || !Array.isArray(bundle.datasets) || bundle.datasets.length === 0) {
+        window.UI?.toast?.show?.('Невідомий формат JSON для таблиці', { type: 'error' });
+        return;
+      }
+      // Rewrite journalId
+      bundle.datasets = bundle.datasets.map((d) => ({ ...d, journalId: id }));
+
+      const okReplace = await window.UI?.confirm?.('Імпорт JSON', 'Режим: ОК = replace (повністю замінити), Скасувати = merge (додати/оновити).', { okText: 'Replace', cancelText: 'Merge' });
+      const mode = okReplace ? 'replace' : 'merge';
+      const res = await sdoInst.api.tableStore.importTableData(bundle, { mode });
+      if (res?.applied) window.UI?.toast?.show?.(`Імпорт JSON виконано (${mode})`, { type: 'success' });
+      else window.UI?.toast?.show?.(`Імпорт JSON не виконано: ${(res?.errors || []).join(', ')}`, { type: 'error' });
+    }
+
+    async function exportCurrentJournalXlsx() {
+      const id = getActiveJournalId();
+      if (!id) return window.UI?.toast?.show?.('Не обрано журнал (activeJournalId пустий)', { type: 'warning' });
+      await sdoInst.exportXlsx({ journalIds: [id], filename: `journal_${getActiveJournalTitle()}` });
+      window.UI?.toast?.show?.('Експорт XLSX виконано', { type: 'success' });
+    }
+
+    async function importCurrentJournalXlsx() {
+      const id = getActiveJournalId();
+      if (!id) return window.UI?.toast?.show?.('Не обрано журнал (activeJournalId пустий)', { type: 'warning' });
+      const file = await pickFile({ accept: '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      if (!file) return;
+
+      // Core importXlsx maps sheets by sheet name to journal name.
+      // We import first, then if it landed in a different journal, we offer to move it into the current journal.
+      let res;
+      try {
+        res = await sdoInst.importXlsx(file, { mode: 'merge' });
+      } catch (e) {
+        window.UI?.toast?.show?.(`XLSX імпорт помилка: ${e.message || e}`, { type: 'error' });
+        return;
+      }
+
+      const importedIds = (res?.sheets || []).map((x) => x.journalId);
+      if (importedIds.length === 1 && importedIds[0] !== id) {
+        const otherId = importedIds[0];
+        const ok = await window.UI?.confirm?.('XLSX імпорт', 'Лист XLSX імпортувався в інший журнал (за назвою sheet). Перенести дані в поточний журнал?', { okText: 'Перенести', cancelText: 'Залишити' });
+        if (ok) {
+          const bundle = await sdoInst.api.tableStore.exportTableData({ journalIds: [otherId], includeFormatting: true });
+          bundle.datasets = bundle.datasets.map((d) => ({ ...d, journalId: id }));
+          await sdoInst.api.tableStore.importTableData(bundle, { mode: 'merge' });
+          window.UI?.toast?.show?.('Дані перенесені в поточний журнал', { type: 'success' });
+        }
+      }
+
+      window.UI?.toast?.show?.('Імпорт XLSX виконано', { type: 'success' });
+    }
+
+    async function exportAllZip() {
+      const bundle = await sdoInst.exportBackup({ scope: 'all', includeUserData: true });
+      const json = JSON.stringify(bundle, null, 2);
+      const zipBlob = zipStore([{ name: 'backup.json', dataU8: enc.encode(json) }]);
+      const fname = `backup_all_${new Date().toISOString().replace(/[:\.]/g, '-')}.zip`;
+      downloadBlob(zipBlob, fname);
+      window.UI?.toast?.show?.('Експорт ZIP виконано', { type: 'success' });
+    }
+
+    async function importAllZip() {
+      const file = await pickFile({ accept: '.zip,application/zip' });
+      if (!file) return;
+      const ab = await file.arrayBuffer();
+      let dataU8;
+      try {
+        dataU8 = await unzipStoreGetFile(ab, 'backup.json');
+      } catch (e) {
+        window.UI?.toast?.show?.(`ZIP помилка: ${e.message || e}`, { type: 'error' });
+        return;
+      }
+      if (!dataU8) {
+        window.UI?.toast?.show?.('У ZIP не знайдено backup.json', { type: 'error' });
+        return;
+      }
+      let parsed;
+      try { parsed = JSON.parse(dec.decode(dataU8)); } catch {
+        window.UI?.toast?.show?.('backup.json пошкоджений', { type: 'error' });
+        return;
+      }
+      const okReplace = await window.UI?.confirm?.('Імпорт ZIP', 'Режим: ОК = replace (замінити), Скасувати = merge (об’єднати).', { okText: 'Replace', cancelText: 'Merge' });
+      const mode = okReplace ? 'replace' : 'merge';
+      try {
+        await sdoInst.importBackup(parsed, { mode, includeUserData: true });
+        window.UI?.toast?.show?.(`Імпорт ZIP виконано (${mode})`, { type: 'success' });
+      } catch (e) {
+        window.UI?.toast?.show?.(`Імпорт ZIP помилка: ${e.message || e}`, { type: 'error' });
+      }
+    }
+
+    const body = document.createElement('div');
+    body.className = 'ui-modal-content';
+
+    const title = document.createElement('div');
+    title.style.marginBottom = '8px';
+    title.innerHTML = `<b>Backup / Import / Export</b><div style="opacity:.8;font-size:.9em">Поточний журнал: ${getActiveJournalTitle()}</div>`;
+
+    const grid = document.createElement('div');
+    grid.style.display = 'grid';
+    grid.style.gridTemplateColumns = '1fr 1fr';
+    grid.style.gap = '8px';
+
+    const mkBtn = (label, fn, primary=false) => {
+      const b = document.createElement('button');
+      b.className = primary ? 'btn btn-primary' : 'btn';
+      b.textContent = label;
+      b.onclick = async () => {
+        b.disabled = true;
+        try {
+          await fn();
+        } catch (e) {
+          console.error('[Backup modal action failed]', label, e);
+          const msg = (e && (e.message || e.toString)) ? (e.message || String(e)) : String(e);
+          window.UI?.toast?.show?.(`${label}: помилка: ${msg}`, { type: 'error' });
+          try { window.UI?.modal?.alert?.(`${label}:\n${msg}`, { title: 'Помилка' }); } catch (_) {}
+        } finally {
+          b.disabled = false;
+        }
+      };
+      return b;
+    };
+
+    grid.append(
+      mkBtn('Імпорт JSON (поточний)', importCurrentJournalJson, true),
+      mkBtn('Експорт JSON (поточний)', exportCurrentJournalJson),
+      mkBtn('Імпорт Excel (поточний)', importCurrentJournalXlsx, true),
+      mkBtn('Експорт Excel (поточний)', exportCurrentJournalXlsx)
+    );
+
+    const hr = document.createElement('div');
+    hr.style.height = '1px';
+    hr.style.background = 'rgba(0,0,0,0.08)';
+    hr.style.margin = '12px 0';
+
+    const zipRow = document.createElement('div');
+    zipRow.style.display = 'grid';
+    zipRow.style.gridTemplateColumns = '1fr 1fr';
+    zipRow.style.gap = '8px';
+    zipRow.append(
+      mkBtn('Імпорт всього ZIP', importAllZip, true),
+      mkBtn('Експорт всього ZIP', exportAllZip)
+    );
+
+    body.append(title, grid, hr, zipRow);
+
+    window.UI?.modal?.open?.({
+      title: 'Backup',
+      contentNode: body,
+      closeOnOverlay: true,
+    });
+  }
+
 
   function closeModal() { modal.close(); }
 
@@ -1398,7 +1793,6 @@ async function openTemplatesManager() {
       items: [
         { label: 'Журнали', description: 'Шаблони, колонки, поля', onOpen: ()=>openJournalsMenu() },
         { label: 'UX|UI', description: '', onOpen: ()=> SW.push({ title:'UX|UI', subtitle:'', content: (ctx)=>ctx.ui.card({title:'UX|UI', description:'В розробці'}) }) },
-        { label: 'Backup', description: '', onOpen: ()=> SW.push({ title:'Backup', subtitle:'', content: (ctx)=>ctx.ui.card({title:'Backup', description:'В розробці'}) }) },
         { label: 'Перенесення', description: 'Шаблони перенесення', onOpen: ()=> openTransferTemplatesScreen() },
       ]
     });
@@ -1808,7 +2202,7 @@ async function openTemplatesManager() {
 
   function renderButtons() {
     const left = h('div', { class: 'sdo-toolbar-left' });
-    const rightBlock = h('div', { class: 'sdo-block sdo-block-settings' }, [themeButton, settingsButton]);
+    const rightBlock = h('div', { class: 'sdo-block sdo-block-settings' }, [themeButton, backupButton, settingsButton]);
     const right = h('div', { class: 'sdo-toolbar-right' }, [rightBlock]);
 
     // One-line header: navigation + table controls live here.
