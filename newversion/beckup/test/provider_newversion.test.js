@@ -26,3 +26,46 @@ test('createBeckupProvider exports and imports via db-first adapter', async () =
   assert.equal(imported.applied, true);
   assert.ok(Array.isArray(imported.warnings));
 });
+
+
+test('provider import exposes hasErrors and applied=false when import errors exist', async () => {
+  const storage = createMemoryStorage();
+  const provider = createBeckupProvider({ storage });
+
+  const payload = {
+    sections: {
+      settings: { payload: { theme: 'dark' } }
+    }
+  };
+
+  // Force an adapter-level error path.
+  const originalSet = storage.set.bind(storage);
+  storage.set = async (key, value) => {
+    if (key === 'core_settings_v2') throw new Error('settings write failed');
+    return originalSet(key, value);
+  };
+
+  const imported = await provider.import(payload, { mode: 'merge' });
+  assert.equal(imported.applied, false);
+  assert.equal(imported.hasErrors, true);
+  assert.ok(imported.warnings.some((w) => w.includes('settings write failed')));
+});
+
+
+test('provider import keeps applied=true when only warnings exist', async () => {
+  const storage = createMemoryStorage();
+  const provider = createBeckupProvider({ storage });
+
+  const payload = {
+    sections: {
+      journals: {
+        items: [{ meta: { type: 'not-journal' } }]
+      }
+    }
+  };
+
+  const imported = await provider.import(payload, { mode: 'merge' });
+  assert.equal(imported.applied, true);
+  assert.equal(imported.hasErrors, false);
+  assert.ok(imported.warnings.some((w) => w.includes('Skipped journal')));
+});

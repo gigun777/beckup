@@ -677,3 +677,14 @@ html, body { height: 100%; }
 
 /* === Force table cell centering (fix8) === */
 .sdo-table td{ text-align:center !important; }
+
+/* Backup import modal */
+.sdo-backup-import-modal{ min-width:min(90vw,680px); max-width:min(90vw,680px); display:grid; gap:10px; }
+.sdo-backup-import-title{ margin:0; font-size:16px; }
+.sdo-backup-import-file{ font-size:12px; opacity:.75; }
+.sdo-backup-import-table{ width:100%; border-collapse:collapse; border:1px solid var(--border,#e5e5e5); }
+.sdo-backup-import-table td{ border-bottom:1px solid var(--border,#e5e5e5); padding:6px 8px; font-size:13px; }
+.sdo-backup-import-table tr:last-child td{ border-bottom:none; }
+.sdo-backup-import-table td:first-child{ width:140px; font-weight:600; }
+.sdo-backup-import-json summary{ cursor:pointer; font-size:12px; font-weight:600; }
+.sdo-backup-import-json pre{ max-height:280px; overflow:auto; border:1px solid var(--border,#e5e5e5); background:var(--panel,#fff); padding:8px; border-radius:8px; font-size:11px; }

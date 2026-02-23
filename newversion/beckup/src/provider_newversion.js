@@ -40,6 +40,26 @@ export function createBeckupProvider({
     },
     async import(payload, { mode = 'merge' } = {}) {
       const report = await importFullJsonBackupToSource(payload, { target: adapter, mode });
+      const warnings = [
+        ...report.journals.warnings,
+        ...report.settings.warnings,
+        ...report.navigation.warnings,
+        ...report.transfer.warnings,
+        ...report.journals.errors,
+        ...report.settings.errors,
+        ...report.navigation.errors,
+        ...report.transfer.errors
+      ];
+
+      const hasErrors = report.journals.errors.length > 0
+        || report.settings.errors.length > 0
+        || report.navigation.errors.length > 0
+        || report.transfer.errors.length > 0;
+
+      return {
+        applied: !hasErrors,
+        warnings,
+        hasErrors,
       return {
         applied: true,
         warnings: [

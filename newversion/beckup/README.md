@@ -110,3 +110,21 @@ New APIs are designed to work from data source adapters (storage/DB), not render
   - `applyImportPlanToRows({ rows, plan, dataRowStartIndex })`
 - `importAnyExcelToRecords(...)` now uses the constructor core internally (manual mapping or suggested mapping).
 - This prepares the future manual mapping modal without coupling import logic to UI.
+
+
+## Phase 6 (import schema guard + UI readiness)
+
+- Added schema guard helpers:
+  - `normalizeBackupBundle(bundle)`
+  - `normalizeJournalPayload(item)`
+- `importFullJsonBackupToSource(...)` now returns stable diagnostics contract for UI:
+  - `report.meta` (format + formatVersion)
+  - `report.journals.applied/skipped/warnings/errors`
+  - per-section `applied/warnings/errors` for `settings/navigation/transfer`
+- `createBeckupProvider().import(...)` now exposes:
+  - `applied` (true only when there are no warnings/errors)
+  - `hasErrors` (true when at least one hard import error exists)
+  - `warnings` (flattened list from warnings + errors buckets)
+
+This shape is intended for import modal integration in `newversion` UI (summary, warnings panel, and error state toggle).
+

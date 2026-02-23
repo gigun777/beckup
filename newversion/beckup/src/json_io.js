@@ -124,12 +124,19 @@ export async function importFullJsonBackupToSource(payload, { target, mode = 'me
   }
 
   try {
+    if (normalized?.sections?.settings) {
+      await target.saveSettings?.(normalized.sections.settings.payload || {}, { mode });
     if (payload?.sections?.settings) {
       await target.saveSettings?.(payload.sections.settings.payload || {}, { mode });
       report.settings.applied = true;
     }
   } catch (e) {
     report.settings.errors.push(e?.message || String(e));
+  }
+
+  try {
+    if (normalized?.sections?.navigation) {
+      await target.saveNavigation?.(normalized.sections.navigation.payload || null, { mode });
     report.settings.warnings.push(e?.message || String(e));
   }
 
@@ -140,6 +147,11 @@ export async function importFullJsonBackupToSource(payload, { target, mode = 'me
     }
   } catch (e) {
     report.navigation.errors.push(e?.message || String(e));
+  }
+
+  try {
+    if (normalized?.sections?.transfer) {
+      await target.saveTransfer?.(normalized.sections.transfer.payload || {}, { mode });
     report.navigation.warnings.push(e?.message || String(e));
   }
 

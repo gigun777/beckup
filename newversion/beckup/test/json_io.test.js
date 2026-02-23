@@ -31,3 +31,16 @@ test('export/import full json backup tolerates partial sections', async () => {
   const report2 = await importFullJsonBackupToSource(partial, { target, mode: 'merge' });
   assert.equal(report2.journals.applied, 1);
 });
+
+
+test('import uses normalized sections object for optional blocks', async () => {
+  const target = {
+    async saveJournalPayload() {}
+  };
+
+  const report = await importFullJsonBackupToSource({ sections: 'invalid-shape' }, { target, mode: 'merge' });
+  assert.equal(report.settings.applied, false);
+  assert.equal(report.navigation.applied, false);
+  assert.equal(report.transfer.applied, false);
+  assert.deepEqual(report.settings.errors, []);
+});
