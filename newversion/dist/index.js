@@ -777,8 +777,27 @@ const loc = normalizeLocation({ spaces: state.spaces, journals: state.journals, 
 
     // Export datasets to an XLSX workbook. Accepts optional journalIds array and filename. If journalIds is omitted, all journals will be exported.
     async exportXlsx({ journalIds, filename } = {}) {
-      const tableStore = createTableStoreModule();
-      const bundle = await tableStore.exportTableData(storage, { journalIds, includeFormatting: false });
+      let bundle;
+      if (typeof api?.tableStore?.exportTableData === 'function') {
+        bundle = await api.tableStore.exportTableData({ journalIds, includeFormatting: false });
+      } else {
+        const wanted = Array.isArray(journalIds) && journalIds.length ? new Set(journalIds) : null;
+        const datasets = [];
+        const keys = (await storage.keys()) || [];
+        for (const key of keys) {
+          if (!String(key).startsWith('tableStore:dataset:')) continue;
+          const journalId = String(key).slice('tableStore:dataset:'.length);
+          if (wanted && !wanted.has(journalId)) continue;
+          const ds = await storage.get(key);
+          if (!ds) continue;
+          datasets.push({
+            journalId,
+            schemaId: ds.schemaId || null,
+            records: Array.isArray(ds.records) ? ds.records : []
+          });
+        }
+        bundle = { datasets };
+      }
       const sheets = [];
       const journalNameById = {};
       for (const j of state.journals) {
