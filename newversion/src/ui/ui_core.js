@@ -681,6 +681,8 @@ export function createModuleManagerUI({ sdo, mount, api }) {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = accept || '*/*';
+        // Make sure the input is in the DOM (some WebViews require this)
+        // and keep it above other overlays.
         input.style.position = 'fixed';
         input.style.left = '-10000px';
         input.style.top = '0';
@@ -704,6 +706,8 @@ export function createModuleManagerUI({ sdo, mount, api }) {
           window.removeEventListener('focus', onFocusBack, true);
           try { input.remove(); } catch (_) {}
           resolve(file || null);
+        const cleanup = () => {
+          try { input.remove(); } catch (_) {}
         };
 
         input.onchange = () => {
@@ -712,6 +716,22 @@ export function createModuleManagerUI({ sdo, mount, api }) {
         };
 
         window.addEventListener('focus', onFocusBack, true);
+          cleanup();
+          resolve(file);
+        };
+
+        // If the user cancels the picker, many browsers won't fire onchange.
+        // We add a focus fallback to resolve null.
+        const onFocusBack = () => {
+          window.removeEventListener('focus', onFocusBack, true);
+          setTimeout(() => {
+            const file = (input.files && input.files[0]) ? input.files[0] : null;
+            cleanup();
+            resolve(file);
+          }, 0);
+        };
+        window.addEventListener('focus', onFocusBack, true);
+
         input.click();
       });
     }
@@ -769,6 +789,10 @@ export function createModuleManagerUI({ sdo, mount, api }) {
         const count = Array.isArray(res?.datasets) ? res.datasets.length : 0;
         window.UI?.toast?.show?.(`Імпорт JSON виконано (${mode})${count ? `, datasets: ${count}` : ''}`, { type: 'success' });
       }
+      const okReplace = await window.UI?.confirm?.('Імпорт JSON', 'Режим: ОК = replace (повністю замінити), Скасувати = merge (додати/оновити).', { okText: 'Replace', cancelText: 'Merge' });
+      const mode = okReplace ? 'replace' : 'merge';
+      const res = await sdoInst.api.tableStore.importTableData(bundle, { mode });
+      if (res?.applied) window.UI?.toast?.show?.(`Імпорт JSON виконано (${mode})`, { type: 'success' });
       else window.UI?.toast?.show?.(`Імпорт JSON не виконано: ${(res?.errors || []).join(', ')}`, { type: 'error' });
     }
 
