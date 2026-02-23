@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Офлайн діловодство</title>
+  <link rel="stylesheet" href="./css/app.css?v=12.6.13" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="top-left">
+      <button id="btnSettings" class="btn btn-ghost" title="Налаштування">⚙</button>
+      <button id="btnImportExport" class="btn btn-ghost" title="Імпорт / Експорт журналів">⬆⬇</button>
+      <!-- Level (for now: only Administrator) -->
+      <select id="levelSelect" class="select" aria-label="Рівень" style="max-width:200px" disabled>
+        <option value="admin">Адміністратор</option>
+      </select>
+
+      <!-- Space (for now: only Space 1) -->
+      <select id="spaceSelect" class="select" aria-label="Простір" style="max-width:220px"></select>
+      <button id="btnAddSpace" class="btn btn-ghost" title="Додати простір">＋</button>
+      <select id="sheetSelect" class="select" aria-label="Журнал"></select>
+      <button id="btnAddChild0" class="btn btn-ghost" title="Додати піджурнал">＋</button>
+      <span id="subjournalChain" class="subjournal-chain"></span>
+
+      <!-- Legacy (disabled): Nomenklatura case descriptions. Subjournals replace this. -->
+      <select id="caseSelect" class="select" style="display:none" aria-label="Вибір опису справи"></select>
+      <button id="btnCaseBack" class="btn btn-ghost" style="display:none">← Номенклатура</button>
+    </div>
+
+    <div class="top-right">
+      <input id="searchInput" class="input" placeholder="Пошук у поточному листі…" />
+      <button id="btnSimpleView" class="btn" title="Спрощений перегляд" disabled>☰ Спрощено</button>
+      <select id="simpleViewTemplate" class="select" style="display:none; max-width:200px" aria-label="Шаблон спрощеного перегляду"></select>
+      <button id="btnSelect" class="btn" title="Режим вибору">☑ Вибір</button>
+      <button id="btnTransferSelected" class="btn" style="display:none" title="Перенести вибрані">⇄ Перенести</button>
+      <button id="btnAdd" class="btn btn-primary">＋ Додати</button>
+    </div>
+  </header>
+
+  <div id="menu" class="menu" style="display:none">
+    <button class="menu-item" data-action="settingsPanel">🛠 Панель налаштувань</button>
+    <div class="menu-sep"></div>
+    <button class="menu-item" data-action="exportCurrent">📤 Експорт поточного</button>
+    <button class="menu-item" data-action="exportAllZip">📦 Повний експорт ВСЬОГО (ZIP → JSON)</button>
+    <button class="menu-item" data-action="importJson">📥 Імпорт JSON</button>
+    <button class="menu-item" data-action="importZip">📥 Імпорт ZIP</button>
+    <button class="menu-item" data-action="importXlsx">📥 Імпорт XLSX у поточний лист</button>
+    <button class="menu-item" data-action="print">🖨 Друк/ПДФ (через друк)</button>
+    <div class="menu-sep"></div>
+    <button class="menu-item danger" data-action="clearCurrent">🧹 Очистити поточний</button>
+    <button class="menu-item danger" data-action="clearAll">🧨 Очистити ВСЕ</button>
+  </div>
+
+  <main class="main">
+    <div class="table-wrap">
+      <div id="cards" class="sv-cards" style="display:none"></div>
+      <table id="table" class="table"></table>
+      <div class="side-hint" id="sideHint"></div>
+    </div>
+  </main>
+
+  <input type="file" id="fileImportJson" style="display:none" accept="application/json,.json" />
+  <input type="file" id="fileImportZip" style="display:none" accept="application/zip,.zip" />
+  <input type="file" id="fileImportXlsx" style="display:none" accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xlsx" />
+
+  <div id="modalBackdrop" class="backdrop" style="display:none">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <h3 id="modalTitle">Дія</h3>
+      <div id="modalBody" class="modal-body"></div>
+      <div id="modalActions" class="modal-actions"></div>
+    </div>
+  </div>
+
+  <div id="settingsBackdrop" class="backdrop" style="display:none">
+    <div class="modal modal-wide" role="dialog" aria-modal="true">
+      <div class="settings-head">
+        <div>
+          <h3>Панель налаштувань</h3>
+          <div class="muted">Модульна версія. Кастомні листи рівні дефолтним.</div>
+        </div>
+        <button id="settingsClose" class="btn btn-ghost">✕</button>
+      </div>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="sheets">Листи</button>
+        <button class="tab" data-tab="columns">Колонки</button>
+        <button class="tab" data-tab="addform">Поля для “Додати”</button>
+        <button class="tab" data-tab="transfer">Перенесення</button>
+        <button class="tab" data-tab="backup">Бекап</button>
+        <button class="tab" data-tab="export">Експорт/Друк</button>
+      </div>
+
+      <div id="settingsContent" class="settings-content"></div>
+
+      <div class="modal-actions">
+        <button id="settingsSave" class="btn btn-primary">Зберегти</button>
+        <button id="settingsCancel" class="btn">Закрити</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="scrollJump" class="scroll-jump hidden">
+    <button id="btnScrollTop" class="btn" title="Вгору">↑</button>
+    <button id="btnScrollBottom" class="btn" title="Вниз">↓</button>
+  </div>
+
+  <!-- cache-bust: v12.6.14.2 -->
+  <script type="module" src="./js/app.js?v=12.6.14.2"></script>
+</body>
+</html>
