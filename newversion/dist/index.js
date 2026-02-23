@@ -964,6 +964,7 @@ const loc = normalizeLocation({ spaces: state.spaces, journals: state.journals, 
     },
 
     // Import records from an XLSX file. Each sheet will be imported into a journal matching either the sheet name or a journal with that name.
+    importXlsx: importXlsx,
     importXlsx,
     async importXlsx(file, opts) {
       if (!file) throw new Error('importXlsx: file is required');
