@@ -964,6 +964,7 @@ const loc = normalizeLocation({ spaces: state.spaces, journals: state.journals, 
     },
 
     // Import records from an XLSX file. Each sheet will be imported into a journal matching either the sheet name or a journal with that name.
+    importXlsx,
     async importXlsx(file, opts) {
       if (!file) throw new Error('importXlsx: file is required');
       const mode = opts && opts.mode ? opts.mode : 'merge';
@@ -1041,10 +1042,12 @@ const loc = normalizeLocation({ spaces: state.spaces, journals: state.journals, 
 export function createNavi(storage) {
   assertStorage(storage);
   return {
-    async exportNavigationState() {
-      return toNavPayload(await loadNavigationState(storage));
+    exportNavigationState: function() {
+      return loadNavigationState(storage).then(function(navState) {
+        return toNavPayload(navState);
+      });
     },
-    async importNavigationState(payload) {
+    importNavigationState: function(payload) {
       return saveNavigationState(storage, fromNavPayload(payload));
     }
   };
