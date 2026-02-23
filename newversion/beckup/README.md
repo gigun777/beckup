@@ -89,3 +89,5 @@ New APIs are designed to work from data source adapters (storage/DB), not render
   - auto mapping by header names when mapping is omitted.
 
 > Import UI/constructor is intentionally not included yet (per workflow): backend import/export functions first.
+
+- JSON import in newversion adapter supports partial recovery fallback from legacy `rows[].exportData` / `rows[].data` when `rowsV2` is absent.

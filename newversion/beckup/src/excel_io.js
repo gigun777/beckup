@@ -28,6 +28,34 @@ function parseSharedStrings(sharedStringsXml) {
   return out;
 }
 
+function extractWorkbookSheets(workbookDoc) {
+  const out = [];
+  const sheetsNode = workbookDoc.getElementsByTagName('sheets')[0];
+  const sheetEls = Array.from(sheetsNode?.getElementsByTagName('sheet') || []);
+  for (const el of sheetEls) {
+    out.push({
+      name: el.getAttribute('name') || '',
+      relId: el.getAttribute('r:id') || el.getAttribute('id') || '',
+      sheetId: el.getAttribute('sheetId') || ''
+    });
+  }
+  return out;
+}
+
+function extractWorkbookRelationships(relsDoc) {
+  const rels = Array.from(relsDoc.getElementsByTagName('Relationship'));
+  return rels.map((r) => ({
+    id: r.getAttribute('Id') || '',
+    target: r.getAttribute('Target') || ''
+  }));
+}
+
+function normalizeWorksheetPath(target) {
+  if (!target) return '';
+  return target.startsWith('/') ? target.slice(1) : `xl/${target.replace(/^\.\//, '')}`;
+}
+
+function resolveWorksheetBySelector(files, selector = {}) {
 function resolveFirstWorksheetPath(files) {
   // Fully independent from file names: resolve by workbook.xml + relationships.
   const workbookPath = 'xl/workbook.xml';
@@ -38,6 +66,37 @@ function resolveFirstWorksheetPath(files) {
 
   const workbookDoc = parseXml(decodeUtf8(files.get(workbookPath)));
   const relsDoc = parseXml(decodeUtf8(files.get(relsPath)));
+  const sheets = extractWorkbookSheets(workbookDoc);
+  const rels = extractWorkbookRelationships(relsDoc);
+
+  if (!sheets.length) throw new Error('No sheet entries in workbook.xml');
+
+  let picked;
+  if (typeof selector?.name === 'string' && selector.name.trim()) {
+    picked = sheets.find((s) => s.name === selector.name.trim());
+    if (!picked) throw new Error(`Worksheet not found by name: ${selector.name}`);
+  } else if (Number.isFinite(selector?.index)) {
+    const idx = Number(selector.index);
+    if (idx < 0 || idx >= sheets.length) throw new Error(`Worksheet index out of range: ${idx}`);
+    picked = sheets[idx];
+  } else {
+    picked = sheets[0];
+  }
+
+  const rel = rels.find((r) => r.id === picked.relId);
+  if (!rel) throw new Error(`Relationship not found for worksheet: ${picked.name || picked.relId}`);
+
+  const worksheetPath = normalizeWorksheetPath(rel.target);
+  if (!worksheetPath || !files.has(worksheetPath)) {
+    throw new Error(`Worksheet file not found: ${worksheetPath}`);
+  }
+
+  return {
+    worksheetPath,
+    sheetName: picked.name || '',
+    sheetIndex: sheets.indexOf(picked),
+    sheets: sheets.map((s, i) => ({ name: s.name, index: i }))
+  };
 
   const firstSheet = selectFirst(workbookDoc.getElementsByTagName('sheet'), 'sheet');
   if (!firstSheet) throw new Error('No sheet entries in workbook.xml');
@@ -113,6 +172,10 @@ function normalizeHeaderName(v) {
 }
 
 /**
+ * Parse ANY .xlsx and return rows matrix.
+ * Doesn't depend on workbook file naming conventions.
+ */
+export async function parseAnyXlsx(arrayBuffer, { worksheet = {} } = {}) {
  * Parse ANY .xlsx and return rows matrix. Doesn't depend on file names.
  */
 export async function parseAnyXlsx(arrayBuffer) {
@@ -120,6 +183,14 @@ export async function parseAnyXlsx(arrayBuffer) {
   const files = entriesMap(entries);
 
   const sharedStrings = parseSharedStrings(files.has('xl/sharedStrings.xml') ? decodeUtf8(files.get('xl/sharedStrings.xml')) : null);
+  const picked = resolveWorksheetBySelector(files, worksheet);
+
+  const rows = parseWorksheetRows(decodeUtf8(files.get(picked.worksheetPath)), sharedStrings);
+  return {
+    worksheetPath: picked.worksheetPath,
+    worksheetName: picked.sheetName,
+    worksheetIndex: picked.sheetIndex,
+    worksheets: picked.sheets,
   const worksheetPath = resolveFirstWorksheetPath(files);
   if (!files.has(worksheetPath)) throw new Error(`Worksheet file not found: ${worksheetPath}`);
 
@@ -141,6 +212,7 @@ export async function importAnyExcelToRecords({
   arrayBuffer,
   targetColumns,
   mapping = null,
+  worksheet = {},
   headerRowIndex = 0,
   dataRowStartIndex = 1
 } = {}) {
@@ -148,6 +220,20 @@ export async function importAnyExcelToRecords({
     throw new Error('targetColumns is required');
   }
 
+  const parsed = await parseAnyXlsx(arrayBuffer, { worksheet });
+  const rows = parsed.rows;
+  if (!rows.length) {
+    return {
+      records: [],
+      mappingUsed: [],
+      worksheet: {
+        name: parsed.worksheetName,
+        index: parsed.worksheetIndex,
+        path: parsed.worksheetPath
+      },
+      warnings: ['Empty worksheet']
+    };
+  }
   const parsed = await parseAnyXlsx(arrayBuffer);
   const rows = parsed.rows;
   if (!rows.length) return { records: [], mappingUsed: [], warnings: ['Empty worksheet'] };
@@ -160,6 +246,7 @@ export async function importAnyExcelToRecords({
 
   let mappingUsed = [];
   if (Array.isArray(mapping) && mapping.length) {
+    // manual mapping format: [{sourceCol:1,targetKey:'name'}], sourceCol is 1-based
     // manual mapping format: [{sourceCol:1,targetKey:'name'}] sourceCol is 1-based
     mappingUsed = mapping
       .filter((m) => Number.isFinite(m?.sourceCol) && m.sourceCol >= 1 && m.targetKey)
@@ -194,6 +281,11 @@ export async function importAnyExcelToRecords({
   return {
     records,
     mappingUsed,
+    worksheet: {
+      name: parsed.worksheetName,
+      index: parsed.worksheetIndex,
+      path: parsed.worksheetPath
+    },
     warnings: mappingUsed.length ? [] : ['No columns mapped']
   };
 }

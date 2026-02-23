@@ -55,6 +55,8 @@ export function createNewversionSourceAdapter(storage, { tableDatasetPrefix = 't
 
       const rowsV2 = Array.isArray(payload?.rowsV2) ? payload.rowsV2 : [];
       const columns = Array.isArray(payload?.sheet?.columns) ? payload.sheet.columns.map((c) => c.name || c.key) : [];
+
+      let incomingRecords = rowsV2.map((r) => {
       const incomingRecords = rowsV2.map((r) => {
         const cells = {};
         for (let i = 0; i < columns.length; i += 1) cells[columns[i]] = r.cells?.[i] ?? '';
@@ -66,6 +68,20 @@ export function createNewversionSourceAdapter(storage, { tableDatasetPrefix = 't
           updatedAt: r.updatedAt || null
         };
       });
+
+      // Partial-recovery fallback: if rowsV2 is missing, try legacy rows[].exportData / rows[].data.
+      if (!incomingRecords.length && Array.isArray(payload?.rows)) {
+        incomingRecords = payload.rows.map((r) => {
+          const src = r?.exportData || r?.data || {};
+          return {
+            id: r?.id || crypto.randomUUID(),
+            cells: { ...src },
+            subrows: Array.isArray(r?.subrows) ? r.subrows : [],
+            createdAt: r?.createdAt || null,
+            updatedAt: r?.updatedAt || null
+          };
+        });
+      }
 
       const current = await storage.get(key);
       const currentRecords = Array.isArray(current?.records) ? current.records : [];
