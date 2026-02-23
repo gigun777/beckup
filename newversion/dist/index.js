@@ -74,7 +74,7 @@ function excelIsNumber(v) {
 
 // Build worksheet XML for a single sheet using inline strings.
 // sheetName is ignored here; names are defined in workbook.xml.
-function excelBuildWorksheetXml(columns, rows) {
+function excelBuildWorksheetXml(columns, rows, merges = []) {
   let sheetRows = '';
   // Header row (row 1)
   const headerCells = columns.map((c, ci) => {
@@ -96,7 +96,11 @@ function excelBuildWorksheetXml(columns, rows) {
     }).join('');
     sheetRows += `<row r="${rIndex}">${cells}</row>`;
   }
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetData>${sheetRows}</sheetData></worksheet>`;
+  const mergeXml = merges.length
+    ? `<mergeCells count="${merges.length}">${merges.map((m) => `<mergeCell ref="${m}"/>`).join('')}</mergeCells>`
+    : '';
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetData>${sheetRows}</sheetData>${mergeXml}</worksheet>`;
 }
 
 // ZIP writer helpers derived from the minimal zip store implementation.
@@ -357,7 +361,7 @@ function excelBuildWorkbook(sheets) {
   const workbookRels = [];
   let sheetId = 1;
   for (const sheet of sheets) {
-    const xml = excelBuildWorksheetXml(sheet.columns, sheet.rows);
+    const xml = excelBuildWorksheetXml(sheet.columns, sheet.rows, sheet.merges || []);
     const fileName = `xl/worksheets/sheet${sheetId}.xml`;
     entries.push({ name: fileName, data: te.encode(xml) });
     workbookSheets.push({ name: sheet.name, id: sheetId });
@@ -777,8 +781,27 @@ const loc = normalizeLocation({ spaces: state.spaces, journals: state.journals, 
 
     // Export datasets to an XLSX workbook. Accepts optional journalIds array and filename. If journalIds is omitted, all journals will be exported.
     async exportXlsx({ journalIds, filename } = {}) {
-      const tableStore = createTableStoreModule();
-      const bundle = await tableStore.exportTableData(storage, { journalIds, includeFormatting: false });
+      let bundle;
+      if (typeof api?.tableStore?.exportTableData === 'function') {
+        bundle = await api.tableStore.exportTableData({ journalIds, includeFormatting: false });
+      } else {
+        const wanted = Array.isArray(journalIds) && journalIds.length ? new Set(journalIds) : null;
+        const datasets = [];
+        const keys = (await storage.keys()) || [];
+        for (const key of keys) {
+          if (!String(key).startsWith('tableStore:dataset:')) continue;
+          const journalId = String(key).slice('tableStore:dataset:'.length);
+          if (wanted && !wanted.has(journalId)) continue;
+          const ds = await storage.get(key);
+          if (!ds) continue;
+          datasets.push({
+            journalId,
+            schemaId: ds.schemaId || null,
+            records: Array.isArray(ds.records) ? ds.records : []
+          });
+        }
+        bundle = { datasets };
+      }
       const sheets = [];
       const journalNameById = {};
       for (const j of state.journals) {
@@ -786,12 +809,17 @@ const loc = normalizeLocation({ spaces: state.spaces, journals: state.journals, 
       }
       for (const dataset of bundle.datasets) {
         let columns = [];
-        if (dataset.records && dataset.records.length > 0) {
+        if (Array.isArray(dataset.records) && dataset.records.length > 0) {
           const first = dataset.records[0];
           columns = Object.keys(first.cells ?? {});
           for (const rec of dataset.records) {
             for (const k of Object.keys(rec.cells ?? {})) {
               if (!columns.includes(k)) columns.push(k);
+            }
+            for (const sr of (rec.subrows || [])) {
+              for (const k of Object.keys(sr?.cells ?? {})) {
+                if (!columns.includes(k)) columns.push(k);
+              }
             }
           }
         }
@@ -804,16 +832,46 @@ const loc = normalizeLocation({ spaces: state.spaces, journals: state.journals, 
             columns = ordered;
           }
         }
+
+        const journalMeta = (state.journals || []).find((j) => j?.id === dataset.journalId) || null;
+        const tplId = journalMeta?.templateId || null;
+        const tplSettingsKey = tplId ? `@sdo/module-table-renderer:settings:tpl:${tplId}` : null;
+        const tplSettings = tplSettingsKey ? ((await storage.get(tplSettingsKey)) || {}) : {};
+        const subrowsMap = tplSettings?.subrows?.columnsSubrowsEnabled || {};
+        const anySubrowsEnabled = columns.some((k) => subrowsMap[k] !== false);
+
         const rows = [];
-        for (const rec of dataset.records) {
-          const rowObj = {};
-          for (const col of columns) {
-            rowObj[col] = rec.cells?.[col] ?? '';
+        const merges = [];
+        for (const rec of (dataset.records || [])) {
+          const subs = Array.isArray(rec.subrows) ? rec.subrows : [];
+          const lineCount = anySubrowsEnabled ? (1 + subs.length) : 1;
+          const startRow = rows.length + 2;
+
+          for (let li = 0; li < lineCount; li += 1) {
+            const rowObj = {};
+            for (let ci = 0; ci < columns.length; ci += 1) {
+              const col = columns[ci];
+              const enabled = subrowsMap[col] !== false;
+              if (li === 0) rowObj[col] = rec?.cells?.[col] ?? '';
+              else if (enabled) rowObj[col] = subs[li - 1]?.cells?.[col] ?? '';
+              else rowObj[col] = '';
+            }
+            rows.push(rowObj);
           }
-          rows.push(rowObj);
+
+          if (lineCount > 1) {
+            for (let ci = 0; ci < columns.length; ci += 1) {
+              const col = columns[ci];
+              const enabled = subrowsMap[col] !== false;
+              if (enabled) continue;
+              const colL = excelColLetter(ci + 1);
+              merges.push(`${colL}${startRow}:${colL}${startRow + lineCount - 1}`);
+            }
+          }
         }
+
         const sheetName = journalNameById[dataset.journalId] ?? String(dataset.journalId);
-        sheets.push({ name: sheetName, columns, rows });
+        sheets.push({ name: sheetName, columns, rows, merges });
       }
       const bytes = excelBuildWorkbook(sheets);
       const fname = (filename || 'export') + '_' + new Date().toISOString().replace(/[:\.]/g, '-') + '.xlsx';
@@ -830,37 +888,45 @@ const loc = normalizeLocation({ spaces: state.spaces, journals: state.journals, 
     },
 
     // Import records from an XLSX file. Each sheet will be imported into a journal matching either the sheet name or a journal with that name.
-    async importXlsx(file, { mode = 'merge' } = {}) {
+    async importXlsx(file, opts) {
       if (!file) throw new Error('importXlsx: file is required');
+      const mode = opts && opts.mode ? opts.mode : 'merge';
       const ab = await (file.arrayBuffer ? file.arrayBuffer() : new Response(file).arrayBuffer());
       const entries = await excelUnzipEntries(ab);
       const sheets = await excelParseWorkbook(entries);
       const tableStore = createTableStoreModule();
       const journalIdByName = {};
-      for (const j of state.journals) {
-        const nameKey = (j.name || j.title || '').trim();
+      for (let ji = 0; ji < state.journals.length; ji += 1) {
+        const j = state.journals[ji];
+        const nameKey = String(j.name || j.title || '').trim();
         if (nameKey) journalIdByName[nameKey] = j.id;
       }
       const results = [];
-      for (const sheet of sheets) {
-        const jId = journalIdByName[sheet.name] ?? sheet.name;
-        const records = sheet.rows.map((row) => {
+      for (let si = 0; si < sheets.length; si += 1) {
+        const sheet = sheets[si];
+        const jId = Object.prototype.hasOwnProperty.call(journalIdByName, sheet.name)
+          ? journalIdByName[sheet.name]
+          : sheet.name;
+        const rows = Array.isArray(sheet.rows) ? sheet.rows : [];
+        const records = [];
+        for (let ri = 0; ri < rows.length; ri += 1) {
+          const row = rows[ri] || {};
           const cells = {};
-          for (const [key, value] of Object.entries(row)) {
-            const vStr = String(value ?? '').trim();
-            if (/^-?\d+(?:\.\d+)?$/.test(vStr)) {
-              cells[key] = Number(vStr);
-            } else {
-              cells[key] = value;
-            }
+          const rowKeys = Object.keys(row);
+          for (let rk = 0; rk < rowKeys.length; rk += 1) {
+            const key = rowKeys[rk];
+            const value = row[key];
+            const vStr = String(value == null ? '' : value).trim();
+            const num = Number(vStr);
+            cells[key] = vStr !== '' && Number.isFinite(num) ? num : value;
           }
-          return {
+          records.push({
             id: crypto.randomUUID(),
-            cells,
+            cells: cells,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
-          };
-        });
+          });
+        }
         await tableStore.upsertRecords(storage, jId, records, mode);
         results.push({ journalId: jId, imported: records.length });
       }
