@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>SWS — Empty Modal (Shell only)</title>
+  <link rel="stylesheet" href="./sws_modal.css"/>
+  <style>
+    body{margin:0; font-family:system-ui; background:#eee;}
+  </style>
+</head>
+<body>
+  <!-- SWS markup (same structure as original) -->
+  <div id="swsOverlay" class="sws-overlay" aria-hidden="true">
+    <div id="swsWindow" class="sws-window sws-desktop" role="dialog" aria-modal="true" aria-label="Налаштування">
+      <div id="swsStack" class="sws-stack"></div>
+    </div>
+  </div>
+
+  <script src="./sws_modal.js"></script>
+  <script>
+    SettingsWindow.init({ theme: "light" });
+
+    // Open immediately: EMPTY SWS modal, no settings items/cards inside body.
+    SettingsWindow.openEmptyRoot({
+      title: "Налаштування",
+      subtitle: "Головне меню",
+      saveLabel: "Зберегти",
+      onSave: ()=> console.log("save (demo)")
+    });
+  </script>
+</body>
+</html>
