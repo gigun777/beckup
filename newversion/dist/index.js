@@ -1041,6 +1041,14 @@ const loc = normalizeLocation({ spaces: state.spaces, journals: state.journals, 
 
 export function createNavi(storage) {
   assertStorage(storage);
+  const naviApi = {};
+  naviApi.exportNavigationState = function() {
+    return loadNavigationState(storage).then(function(navState) {
+      return toNavPayload(navState);
+    });
+  };
+  naviApi.importNavigationState = function(payload) {
+    return saveNavigationState(storage, fromNavPayload(payload));
   return {
     exportNavigationState: function() {
       return loadNavigationState(storage).then(function(navState) {
@@ -1051,6 +1059,7 @@ export function createNavi(storage) {
       return saveNavigationState(storage, fromNavPayload(payload));
     }
   };
+  return naviApi;
 }
 
 export { encryptBackup, decryptBackup, signBackup, verifyBackup, verifyIntegrity } from './backup/crypto.js';
