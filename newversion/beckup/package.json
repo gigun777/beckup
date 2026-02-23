@@ -1,0 +1,25 @@
+{
+  "name": "@beckup/beckup",
+  "version": "0.1.0",
+  "description": "Stage-1 backup module for newversion: Zip backup + sheet Excel-JSON export",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test ./test/*.test.js"
+  },
+  "keywords": [
+    "backup",
+    "zip",
+    "json",
+    "excel",
+    "newversion"
+  ],
+  "license": "MIT"
+}
