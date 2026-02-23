@@ -85,6 +85,8 @@ New APIs are designed to work from data source adapters (storage/DB), not render
 
 - `parseAnyXlsx(arrayBuffer, { worksheet })` resolves workbook/sheet via XML relationships, not by file name conventions (worksheet can be selected by `name` or `index`).
 - `importAnyExcelToRecords({ arrayBuffer, targetColumns, mapping?, worksheet? })` supports:
+- `parseAnyXlsx(arrayBuffer)` resolves workbook/sheet via XML relationships, not by file name conventions.
+- `importAnyExcelToRecords({ arrayBuffer, targetColumns, mapping? })` supports:
   - manual mapping (`sourceCol -> targetKey`)
   - auto mapping by header names when mapping is omitted.
 

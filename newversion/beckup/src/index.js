@@ -67,4 +67,6 @@ export {
   importAnyExcelToRecords,
   createNewversionSourceAdapter,
   createBeckupProvider
+  createNewversionSourceAdapter
+  buildExcelJsonFileName
 };
