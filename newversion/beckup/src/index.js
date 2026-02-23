@@ -65,4 +65,5 @@ export {
   parseAnyXlsx,
   importAnyExcelToRecords,
   createNewversionSourceAdapter
+  buildExcelJsonFileName
 };
