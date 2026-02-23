@@ -92,33 +92,6 @@ export async function importFullJsonBackupToSource(payload, { target, mode = 'me
         report.journals.applied += 1;
       } catch (e) {
         report.journals.errors.push(`Journal import error: ${e?.message || String(e)}`);
-  if (!payload || typeof payload !== 'object') throw new Error('Invalid backup payload');
-  if (!target) throw new Error('target adapter is required');
-
-  const report = {
-    journals: { applied: 0, warnings: [] },
-    settings: { applied: false, warnings: [] },
-    navigation: { applied: false, warnings: [] },
-    transfer: { applied: false, warnings: [] }
-  };
-
-  const journals = payload?.sections?.journals?.items;
-  if (Array.isArray(journals)) {
-    for (const j of journals) {
-      try {
-        if (j?.meta?.type !== 'journal') {
-          report.journals.warnings.push('Skipped non-journal item');
-          continue;
-        }
-        const journalKey = j?.meta?.key || j?.sheet?.key;
-        if (!journalKey) {
-          report.journals.warnings.push('Skipped journal without key');
-          continue;
-        }
-        await target.saveJournalPayload?.(journalKey, j, { mode });
-        report.journals.applied += 1;
-      } catch (e) {
-        report.journals.warnings.push(`Journal import warning: ${e?.message || String(e)}`);
       }
     }
   }
@@ -126,8 +99,6 @@ export async function importFullJsonBackupToSource(payload, { target, mode = 'me
   try {
     if (normalized?.sections?.settings) {
       await target.saveSettings?.(normalized.sections.settings.payload || {}, { mode });
-    if (payload?.sections?.settings) {
-      await target.saveSettings?.(payload.sections.settings.payload || {}, { mode });
       report.settings.applied = true;
     }
   } catch (e) {
@@ -137,12 +108,6 @@ export async function importFullJsonBackupToSource(payload, { target, mode = 'me
   try {
     if (normalized?.sections?.navigation) {
       await target.saveNavigation?.(normalized.sections.navigation.payload || null, { mode });
-    report.settings.warnings.push(e?.message || String(e));
-  }
-
-  try {
-    if (payload?.sections?.navigation) {
-      await target.saveNavigation?.(payload.sections.navigation.payload || null, { mode });
       report.navigation.applied = true;
     }
   } catch (e) {
@@ -152,17 +117,10 @@ export async function importFullJsonBackupToSource(payload, { target, mode = 'me
   try {
     if (normalized?.sections?.transfer) {
       await target.saveTransfer?.(normalized.sections.transfer.payload || {}, { mode });
-    report.navigation.warnings.push(e?.message || String(e));
-  }
-
-  try {
-    if (payload?.sections?.transfer) {
-      await target.saveTransfer?.(payload.sections.transfer.payload || {}, { mode });
       report.transfer.applied = true;
     }
   } catch (e) {
     report.transfer.errors.push(e?.message || String(e));
-    report.transfer.warnings.push(e?.message || String(e));
   }
 
   return report;

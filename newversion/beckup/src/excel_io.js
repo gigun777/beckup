@@ -12,11 +12,6 @@ function parseXml(xmlText) {
   return new DOMParser().parseFromString(xmlText, 'application/xml');
 }
 
-function selectFirst(nodes, tag) {
-  const arr = Array.from(nodes || []);
-  return arr.find((n) => n.nodeName === tag || n.localName === tag) || null;
-}
-
 function parseSharedStrings(sharedStringsXml) {
   if (!sharedStringsXml) return [];
   const doc = parseXml(sharedStringsXml);
@@ -57,8 +52,6 @@ function normalizeWorksheetPath(target) {
 }
 
 function resolveWorksheetBySelector(files, selector = {}) {
-function resolveFirstWorksheetPath(files) {
-  // Fully independent from file names: resolve by workbook.xml + relationships.
   const workbookPath = 'xl/workbook.xml';
   const relsPath = 'xl/_rels/workbook.xml.rels';
   if (!files.has(workbookPath) || !files.has(relsPath)) {
@@ -98,23 +91,6 @@ function resolveFirstWorksheetPath(files) {
     sheetIndex: sheets.indexOf(picked),
     sheets: sheets.map((s, i) => ({ name: s.name, index: i }))
   };
-
-  const firstSheet = selectFirst(workbookDoc.getElementsByTagName('sheet'), 'sheet');
-  if (!firstSheet) throw new Error('No sheet entries in workbook.xml');
-
-  const relId = firstSheet.getAttribute('r:id') || firstSheet.getAttribute('id');
-  if (!relId) throw new Error('Worksheet relationship id not found');
-
-  const rels = Array.from(relsDoc.getElementsByTagName('Relationship'));
-  const rel = rels.find((r) => r.getAttribute('Id') === relId);
-  if (!rel) throw new Error(`Relationship ${relId} not found`);
-
-  const target = rel.getAttribute('Target');
-  if (!target) throw new Error('Worksheet target not found');
-
-  // target can be relative like "worksheets/sheet1.xml"
-  const normalized = target.startsWith('/') ? target.slice(1) : `xl/${target.replace(/^\.\//, '')}`;
-  return normalized;
 }
 
 function colLettersToIndex(ref) {
@@ -168,18 +144,12 @@ function parseWorksheetRows(worksheetXml, sharedStrings) {
   return out;
 }
 
-function normalizeHeaderName(v) {
-  return String(v || '').trim().toLowerCase();
-}
 
 /**
  * Parse ANY .xlsx and return rows matrix.
  * Doesn't depend on workbook file naming conventions.
  */
 export async function parseAnyXlsx(arrayBuffer, { worksheet = {} } = {}) {
- * Parse ANY .xlsx and return rows matrix. Doesn't depend on file names.
- */
-export async function parseAnyXlsx(arrayBuffer) {
   const entries = await unzipEntries(arrayBuffer);
   const files = entriesMap(entries);
 
@@ -192,12 +162,6 @@ export async function parseAnyXlsx(arrayBuffer) {
     worksheetName: picked.sheetName,
     worksheetIndex: picked.sheetIndex,
     worksheets: picked.sheets,
-  const worksheetPath = resolveFirstWorksheetPath(files);
-  if (!files.has(worksheetPath)) throw new Error(`Worksheet file not found: ${worksheetPath}`);
-
-  const rows = parseWorksheetRows(decodeUtf8(files.get(worksheetPath)), sharedStrings);
-  return {
-    worksheetPath,
     rows,
     rowCount: rows.length,
     colCount: rows.reduce((m, r) => Math.max(m, r.length), 0)
@@ -248,59 +212,11 @@ export async function importAnyExcelToRecords({
   return {
     records,
     mappingUsed: plan,
-  const parsed = await parseAnyXlsx(arrayBuffer);
-  const rows = parsed.rows;
-  if (!rows.length) return { records: [], mappingUsed: [], warnings: ['Empty worksheet'] };
-
-  const header = rows[headerRowIndex] || [];
-  const targetMeta = targetColumns.map((c, i) => {
-    if (typeof c === 'string') return { key: c, name: c, index: i };
-    return { key: c.key ?? c.name ?? `col_${i + 1}`, name: c.name ?? c.key ?? `col_${i + 1}`, index: i };
-  });
-
-  let mappingUsed = [];
-  if (Array.isArray(mapping) && mapping.length) {
-    // manual mapping format: [{sourceCol:1,targetKey:'name'}], sourceCol is 1-based
-    // manual mapping format: [{sourceCol:1,targetKey:'name'}] sourceCol is 1-based
-    mappingUsed = mapping
-      .filter((m) => Number.isFinite(m?.sourceCol) && m.sourceCol >= 1 && m.targetKey)
-      .map((m) => ({ sourceCol: m.sourceCol, targetKey: m.targetKey }));
-  } else {
-    // auto-map by normalized header names
-    const byHeader = new Map();
-    for (let i = 0; i < header.length; i += 1) {
-      byHeader.set(normalizeHeaderName(header[i]), i + 1);
-    }
-    mappingUsed = targetMeta
-      .map((t) => ({ sourceCol: byHeader.get(normalizeHeaderName(t.name)), targetKey: t.key }))
-      .filter((x) => Number.isFinite(x.sourceCol));
-  }
-
-  const records = [];
-  for (let r = dataRowStartIndex; r < rows.length; r += 1) {
-    const src = rows[r] || [];
-    const cells = {};
-    let hasAny = false;
-
-    for (const m of mappingUsed) {
-      const v = src[m.sourceCol - 1] ?? '';
-      if (String(v).trim() !== '') hasAny = true;
-      cells[m.targetKey] = String(v ?? '');
-    }
-
-    if (!hasAny) continue;
-    records.push({ id: crypto.randomUUID(), cells, subrows: [] });
-  }
-
-  return {
-    records,
-    mappingUsed,
     worksheet: {
       name: parsed.worksheetName,
       index: parsed.worksheetIndex,
       path: parsed.worksheetPath
     },
     warnings: plan.length ? planWarnings : [...planWarnings, 'No columns mapped']
-    warnings: mappingUsed.length ? [] : ['No columns mapped']
   };
 }
