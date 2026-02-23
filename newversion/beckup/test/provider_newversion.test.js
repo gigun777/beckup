@@ -50,3 +50,22 @@ test('provider import exposes hasErrors and applied=false when import errors exi
   assert.equal(imported.hasErrors, true);
   assert.ok(imported.warnings.some((w) => w.includes('settings write failed')));
 });
+
+
+test('provider import keeps applied=true when only warnings exist', async () => {
+  const storage = createMemoryStorage();
+  const provider = createBeckupProvider({ storage });
+
+  const payload = {
+    sections: {
+      journals: {
+        items: [{ meta: { type: 'not-journal' } }]
+      }
+    }
+  };
+
+  const imported = await provider.import(payload, { mode: 'merge' });
+  assert.equal(imported.applied, true);
+  assert.equal(imported.hasErrors, false);
+  assert.ok(imported.warnings.some((w) => w.includes('Skipped journal')));
+});

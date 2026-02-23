@@ -51,13 +51,15 @@ export function createBeckupProvider({
         ...report.transfer.errors
       ];
 
+      const hasErrors = report.journals.errors.length > 0
+        || report.settings.errors.length > 0
+        || report.navigation.errors.length > 0
+        || report.transfer.errors.length > 0;
+
       return {
-        applied: warnings.length === 0,
+        applied: !hasErrors,
         warnings,
-        hasErrors: report.journals.errors.length > 0
-          || report.settings.errors.length > 0
-          || report.navigation.errors.length > 0
-          || report.transfer.errors.length > 0,
+        hasErrors,
         report
       };
     }
