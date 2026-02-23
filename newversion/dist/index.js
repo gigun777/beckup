@@ -807,12 +807,34 @@ const loc = normalizeLocation({ spaces: state.spaces, journals: state.journals, 
       for (const j of state.journals) {
         if (j && j.id) journalNameById[j.id] = j.name || j.title || j.id;
       }
+      function flattenRecords(records = []) {
+        const out = [];
+        const walk = (list) => {
+          for (const rec of (list || [])) {
+            out.push(rec);
+            if (Array.isArray(rec?.subrows) && rec.subrows.length) {
+              const nested = rec.subrows.map((sr, i) => ({
+                id: sr?.id || `${rec.id || 'row'}:sub:${i}`,
+                cells: { ...(sr?.cells || {}) },
+                subrows: Array.isArray(sr?.subrows) ? sr.subrows : []
+              }));
+              walk(nested);
+            }
+          }
+        };
+        walk(records);
+        return out;
+      }
+
       for (const dataset of bundle.datasets) {
+        const flatRecords = flattenRecords(dataset.records || []);
         let columns = [];
         if (Array.isArray(dataset.records) && dataset.records.length > 0) {
           const first = dataset.records[0];
+        if (flatRecords.length > 0) {
+          const first = flatRecords[0];
           columns = Object.keys(first.cells ?? {});
-          for (const rec of dataset.records) {
+          for (const rec of flatRecords) {
             for (const k of Object.keys(rec.cells ?? {})) {
               if (!columns.includes(k)) columns.push(k);
             }
@@ -867,6 +889,10 @@ const loc = normalizeLocation({ spaces: state.spaces, journals: state.journals, 
               const colL = excelColLetter(ci + 1);
               merges.push(`${colL}${startRow}:${colL}${startRow + lineCount - 1}`);
             }
+        for (const rec of flatRecords) {
+          const rowObj = {};
+          for (const col of columns) {
+            rowObj[col] = rec.cells?.[col] ?? '';
           }
         }
 
@@ -888,38 +914,46 @@ const loc = normalizeLocation({ spaces: state.spaces, journals: state.journals, 
     },
 
     // Import records from an XLSX file. Each sheet will be imported into a journal matching either the sheet name or a journal with that name.
-    importXlsx: async function(file, opts) {
+    async importXlsx(file, opts) {
       if (!file) throw new Error('importXlsx: file is required');
       const mode = opts && opts.mode ? opts.mode : 'merge';
-      const fileBuffer = file.arrayBuffer ? await file.arrayBuffer() : await new Response(file).arrayBuffer();
-      const entries = await excelUnzipEntries(fileBuffer);
+      const ab = await (file.arrayBuffer ? file.arrayBuffer() : new Response(file).arrayBuffer());
+      const entries = await excelUnzipEntries(ab);
       const sheets = await excelParseWorkbook(entries);
       const tableStore = createTableStoreModule();
-      const journalIdByName = Object.create(null);
+      const journalIdByName = {};
       for (let ji = 0; ji < state.journals.length; ji += 1) {
         const j = state.journals[ji];
         const nameKey = String(j.name || j.title || '').trim();
-        if (nameKey.length > 0) journalIdByName[nameKey] = j.id;
+        if (nameKey) journalIdByName[nameKey] = j.id;
       }
       const results = [];
       for (let si = 0; si < sheets.length; si += 1) {
-        const sheet = sheets[si] || {};
-        const sheetName = String(sheet.name || '');
-        const hasKnownJournal = Object.prototype.hasOwnProperty.call(journalIdByName, sheetName);
-        const jId = hasKnownJournal ? journalIdByName[sheetName] : sheetName;
+        const sheet = sheets[si];
+        const jId = Object.prototype.hasOwnProperty.call(journalIdByName, sheet.name)
+          ? journalIdByName[sheet.name]
+          : sheet.name;
         const rows = Array.isArray(sheet.rows) ? sheet.rows : [];
         const records = [];
         for (let ri = 0; ri < rows.length; ri += 1) {
           const row = rows[ri] || {};
           const cells = {};
           const rowKeys = Object.keys(row);
+      for (const sheet of sheets) {
+        const jId = Object.prototype.hasOwnProperty.call(journalIdByName, sheet.name)
+          ? journalIdByName[sheet.name]
+          : sheet.name;
+        const records = sheet.rows.map((row) => {
+          const cells = {};
+          const rowKeys = Object.keys(row || {});
           for (let rk = 0; rk < rowKeys.length; rk += 1) {
             const key = rowKeys[rk];
             const value = row[key];
-            const normalized = String(value == null ? '' : value).trim();
-            const asNumber = Number(normalized);
-            if (normalized !== '' && isFinite(asNumber)) {
-              cells[key] = asNumber;
+            const vStr = String(value == null ? '' : value).trim();
+            const num = Number(vStr);
+            cells[key] = vStr !== '' && Number.isFinite(num) ? num : value;
+            if (/^-?\d+(?:\.\d+)?$/.test(vStr)) {
+              cells[key] = Number(vStr);
             } else {
               cells[key] = value;
             }
