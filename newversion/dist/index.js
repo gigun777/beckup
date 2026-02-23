@@ -914,18 +914,31 @@ const loc = normalizeLocation({ spaces: state.spaces, journals: state.journals, 
     },
 
     // Import records from an XLSX file. Each sheet will be imported into a journal matching either the sheet name or a journal with that name.
-    async importXlsx(file, { mode = 'merge' } = {}) {
+    async importXlsx(file, opts) {
       if (!file) throw new Error('importXlsx: file is required');
+      const mode = opts && opts.mode ? opts.mode : 'merge';
       const ab = await (file.arrayBuffer ? file.arrayBuffer() : new Response(file).arrayBuffer());
       const entries = await excelUnzipEntries(ab);
       const sheets = await excelParseWorkbook(entries);
       const tableStore = createTableStoreModule();
       const journalIdByName = {};
-      for (const j of state.journals) {
-        const nameKey = (j.name || j.title || '').trim();
+      for (let ji = 0; ji < state.journals.length; ji += 1) {
+        const j = state.journals[ji];
+        const nameKey = String(j.name || j.title || '').trim();
         if (nameKey) journalIdByName[nameKey] = j.id;
       }
       const results = [];
+      for (let si = 0; si < sheets.length; si += 1) {
+        const sheet = sheets[si];
+        const jId = Object.prototype.hasOwnProperty.call(journalIdByName, sheet.name)
+          ? journalIdByName[sheet.name]
+          : sheet.name;
+        const rows = Array.isArray(sheet.rows) ? sheet.rows : [];
+        const records = [];
+        for (let ri = 0; ri < rows.length; ri += 1) {
+          const row = rows[ri] || {};
+          const cells = {};
+          const rowKeys = Object.keys(row);
       for (const sheet of sheets) {
         const jId = Object.prototype.hasOwnProperty.call(journalIdByName, sheet.name)
           ? journalIdByName[sheet.name]
@@ -937,19 +950,21 @@ const loc = normalizeLocation({ spaces: state.spaces, journals: state.journals, 
             const key = rowKeys[rk];
             const value = row[key];
             const vStr = String(value == null ? '' : value).trim();
+            const num = Number(vStr);
+            cells[key] = vStr !== '' && Number.isFinite(num) ? num : value;
             if (/^-?\d+(?:\.\d+)?$/.test(vStr)) {
               cells[key] = Number(vStr);
             } else {
               cells[key] = value;
             }
           }
-          return {
+          records.push({
             id: crypto.randomUUID(),
-            cells,
+            cells: cells,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
-          };
-        });
+          });
+        }
         await tableStore.upsertRecords(storage, jId, records, mode);
         results.push({ journalId: jId, imported: records.length });
       }
