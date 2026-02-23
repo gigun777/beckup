@@ -13,7 +13,6 @@ import './settings/settings_registry.js';
 import './settings/settings_state.js';
 import './settings/features_table_settings.js';
 import './settings/features_uxui_settings.js';
-import './settings/features_backup_settings.js';
 import './settings/settings_init.js';
 // Legacy settings shell modal removed (SWS v2 is the only settings UI)
 
@@ -1429,7 +1428,6 @@ async function openTemplatesManager() {
       items: [
         { label: 'Журнали', description: 'Шаблони, колонки, поля', onOpen: ()=>openJournalsMenu() },
         { label: 'UX|UI', description: '', onOpen: ()=> SW.push({ title:'UX|UI', subtitle:'', content: (ctx)=>ctx.ui.card({title:'UX|UI', description:'В розробці'}) }) },
-        { label: 'Backup', description: '', onOpen: ()=> SW.push({ title:'Backup', subtitle:'', content: (ctx)=>ctx.ui.card({title:'Backup', description:'В розробці'}) }) },
         { label: 'Перенесення', description: 'Шаблони перенесення', onOpen: ()=> openTransferTemplatesScreen() },
       ]
     });
@@ -1608,8 +1606,6 @@ async function openTemplatesManager() {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = accept || '*/*';
-        // Make sure the input is in the DOM (some WebViews require this)
-        // and keep it above other overlays.
         input.style.position = 'fixed';
         input.style.left = '-10000px';
         input.style.top = '0';
@@ -1619,30 +1615,39 @@ async function openTemplatesManager() {
         input.style.zIndex = '1000000';
         document.body.appendChild(input);
 
-        const cleanup = () => {
+        let done = false;
+        const onFocusBack = () => {
+          setTimeout(() => {
+            const file = (input.files && input.files[0]) ? input.files[0] : null;
+            finish(file);
+          }, 250);
+        };
+
+        const finish = (file) => {
+          if (done) return;
+          done = true;
+          window.removeEventListener('focus', onFocusBack, true);
           try { input.remove(); } catch (_) {}
+          resolve(file || null);
         };
 
         input.onchange = () => {
           const file = (input.files && input.files[0]) ? input.files[0] : null;
-          cleanup();
-          resolve(file);
+          finish(file);
         };
 
-        // If the user cancels the picker, many browsers won't fire onchange.
-        // We add a focus fallback to resolve null.
-        const onFocusBack = () => {
-          window.removeEventListener('focus', onFocusBack, true);
-          setTimeout(() => {
-            const file = (input.files && input.files[0]) ? input.files[0] : null;
-            cleanup();
-            resolve(file);
-          }, 0);
-        };
         window.addEventListener('focus', onFocusBack, true);
-
         input.click();
       });
+    }
+
+
+    async function forceTableRerender() {
+      if (typeof sdoInst?.commit !== 'function') return;
+      await sdoInst.commit((next) => {
+        next.activeSpaceId = next.activeSpaceId;
+        next.activeJournalId = next.activeJournalId;
+      }, []);
     }
 
     async function exportCurrentJournalJson() {
@@ -1678,10 +1683,17 @@ async function openTemplatesManager() {
       // Rewrite journalId
       bundle.datasets = bundle.datasets.map((d) => ({ ...d, journalId: id }));
 
-      const okReplace = await window.UI?.confirm?.('Імпорт JSON', 'Режим: ОК = replace (повністю замінити), Скасувати = merge (додати/оновити).', { okText: 'Replace', cancelText: 'Merge' });
-      const mode = okReplace ? 'replace' : 'merge';
+      let mode = 'replace';
+      if (typeof window.UI?.confirm === 'function') {
+        const okReplace = await window.UI.confirm('Імпорт JSON', 'Режим: ОК = replace (повністю замінити), Скасувати = merge (додати/оновити).', { okText: 'Replace', cancelText: 'Merge' });
+        mode = okReplace ? 'replace' : 'merge';
+      }
       const res = await sdoInst.api.tableStore.importTableData(bundle, { mode });
-      if (res?.applied) window.UI?.toast?.show?.(`Імпорт JSON виконано (${mode})`, { type: 'success' });
+      if (res?.applied) {
+        await forceTableRerender();
+        const count = Array.isArray(res?.datasets) ? res.datasets.length : 0;
+        window.UI?.toast?.show?.(`Імпорт JSON виконано (${mode})${count ? `, datasets: ${count}` : ''}`, { type: 'success' });
+      }
       else window.UI?.toast?.show?.(`Імпорт JSON не виконано: ${(res?.errors || []).join(', ')}`, { type: 'error' });
     }
 
