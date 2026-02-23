@@ -1062,7 +1062,11 @@ export function createNavi(storage) {
   return naviApi;
 }
 
-export { encryptBackup, decryptBackup, signBackup, verifyBackup, verifyIntegrity } from './backup/crypto.js';
+export { encryptBackup } from './backup/crypto.js';
+export { decryptBackup } from './backup/crypto.js';
+export { signBackup } from './backup/crypto.js';
+export { verifyBackup } from './backup/crypto.js';
+export { verifyIntegrity } from './backup/crypto.js';
 export { VERSION as version };
 
 export { createTableEngine, createTableEngineModule } from './modules/table_engine.js';
