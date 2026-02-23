@@ -10,7 +10,9 @@ import { createSettingsRegistry } from './core/settings_registry_core.js';
 import { createJournalTemplatesContainer } from './stores/journal_templates_container.js';
 import { createIntegrity, decryptBackup, encryptBackup, verifyIntegrity } from './backup/crypto.js';
 import { createTableStoreModule } from './modules/table_store.js';
-export { assertStorage, createMemoryStorage, createLocalStorageStorage } from './storage/storage_iface.js';
+export { assertStorage } from './storage/storage_iface.js';
+export { createMemoryStorage } from './storage/storage_iface.js';
+export { createLocalStorageStorage } from './storage/storage_iface.js';
 
 
 function deepFreeze(obj) {
@@ -1070,11 +1072,15 @@ export { verifyBackup } from './backup/crypto.js';
 export { verifyIntegrity } from './backup/crypto.js';
 export { VERSION as version };
 
-export { createTableEngine, createTableEngineModule } from './modules/table_engine.js';
+export { createTableEngine } from './modules/table_engine.js';
+export { createTableEngineModule } from './modules/table_engine.js';
 
 export { createTableStoreModule } from './modules/table_store.js';
-export { createTableFormatterModule, formatCell, parseInput } from './modules/table_formatter.js';
-export { createTableRendererModule, getRenderableCells } from './modules/table_renderer.js';
+export { createTableFormatterModule } from './modules/table_formatter.js';
+export { formatCell } from './modules/table_formatter.js';
+export { parseInput } from './modules/table_formatter.js';
+export { createTableRendererModule } from './modules/table_renderer.js';
+export { getRenderableCells } from './modules/table_renderer.js';
 export { createJournalStore } from './stores/journal_store.js';
 export { createJournalTemplatesContainer } from './stores/journal_templates_container.js';
 export { createTableSubrowsBridge } from './modules/table_subrows_bridge.js';
