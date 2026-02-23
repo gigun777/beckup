@@ -718,6 +718,14 @@ export function createModuleManagerUI({ sdo, mount, api }) {
       });
     }
 
+    async function forceTableRerender() {
+      if (typeof sdoInst?.commit !== 'function') return;
+      await sdoInst.commit((next) => {
+        next.activeSpaceId = next.activeSpaceId;
+        next.activeJournalId = next.activeJournalId;
+      }, []);
+    }
+
     async function exportCurrentJournalJson() {
       const id = getActiveJournalId();
       if (!id) return window.UI?.toast?.show?.('Не обрано журнал (activeJournalId пустий)', { type: 'warning' });
@@ -751,6 +759,17 @@ export function createModuleManagerUI({ sdo, mount, api }) {
       // Rewrite journalId
       bundle.datasets = bundle.datasets.map((d) => ({ ...d, journalId: id }));
 
+      let mode = 'replace';
+      if (typeof window.UI?.confirm === 'function') {
+        const okReplace = await window.UI.confirm('Імпорт JSON', 'Режим: ОК = replace (повністю замінити), Скасувати = merge (додати/оновити).', { okText: 'Replace', cancelText: 'Merge' });
+        mode = okReplace ? 'replace' : 'merge';
+      }
+      const res = await sdoInst.api.tableStore.importTableData(bundle, { mode });
+      if (res?.applied) {
+        await forceTableRerender();
+        const count = Array.isArray(res?.datasets) ? res.datasets.length : 0;
+        window.UI?.toast?.show?.(`Імпорт JSON виконано (${mode})${count ? `, datasets: ${count}` : ''}`, { type: 'success' });
+      }
       const okReplace = await window.UI?.confirm?.('Імпорт JSON', 'Режим: ОК = replace (повністю замінити), Скасувати = merge (додати/оновити).', { okText: 'Replace', cancelText: 'Merge' });
       const mode = okReplace ? 'replace' : 'merge';
       const res = await sdoInst.api.tableStore.importTableData(bundle, { mode });

@@ -803,12 +803,32 @@ const loc = normalizeLocation({ spaces: state.spaces, journals: state.journals, 
       for (const j of state.journals) {
         if (j && j.id) journalNameById[j.id] = j.name || j.title || j.id;
       }
+      function flattenRecords(records = []) {
+        const out = [];
+        const walk = (list) => {
+          for (const rec of (list || [])) {
+            out.push(rec);
+            if (Array.isArray(rec?.subrows) && rec.subrows.length) {
+              const nested = rec.subrows.map((sr, i) => ({
+                id: sr?.id || `${rec.id || 'row'}:sub:${i}`,
+                cells: { ...(sr?.cells || {}) },
+                subrows: Array.isArray(sr?.subrows) ? sr.subrows : []
+              }));
+              walk(nested);
+            }
+          }
+        };
+        walk(records);
+        return out;
+      }
+
       for (const dataset of bundle.datasets) {
+        const flatRecords = flattenRecords(dataset.records || []);
         let columns = [];
-        if (dataset.records && dataset.records.length > 0) {
-          const first = dataset.records[0];
+        if (flatRecords.length > 0) {
+          const first = flatRecords[0];
           columns = Object.keys(first.cells ?? {});
-          for (const rec of dataset.records) {
+          for (const rec of flatRecords) {
             for (const k of Object.keys(rec.cells ?? {})) {
               if (!columns.includes(k)) columns.push(k);
             }
@@ -824,7 +844,7 @@ const loc = normalizeLocation({ spaces: state.spaces, journals: state.journals, 
           }
         }
         const rows = [];
-        for (const rec of dataset.records) {
+        for (const rec of flatRecords) {
           const rowObj = {};
           for (const col of columns) {
             rowObj[col] = rec.cells?.[col] ?? '';
