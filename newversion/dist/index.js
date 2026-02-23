@@ -777,19 +777,58 @@ const loc = normalizeLocation({ spaces: state.spaces, journals: state.journals, 
 
     // Export datasets to an XLSX workbook. Accepts optional journalIds array and filename. If journalIds is omitted, all journals will be exported.
     async exportXlsx({ journalIds, filename } = {}) {
-      const tableStore = createTableStoreModule();
-      const bundle = await tableStore.exportTableData(storage, { journalIds, includeFormatting: false });
+      let bundle;
+      if (typeof api?.tableStore?.exportTableData === 'function') {
+        bundle = await api.tableStore.exportTableData({ journalIds, includeFormatting: false });
+      } else {
+        const wanted = Array.isArray(journalIds) && journalIds.length ? new Set(journalIds) : null;
+        const datasets = [];
+        const keys = (await storage.keys()) || [];
+        for (const key of keys) {
+          if (!String(key).startsWith('tableStore:dataset:')) continue;
+          const journalId = String(key).slice('tableStore:dataset:'.length);
+          if (wanted && !wanted.has(journalId)) continue;
+          const ds = await storage.get(key);
+          if (!ds) continue;
+          datasets.push({
+            journalId,
+            schemaId: ds.schemaId || null,
+            records: Array.isArray(ds.records) ? ds.records : []
+          });
+        }
+        bundle = { datasets };
+      }
       const sheets = [];
       const journalNameById = {};
       for (const j of state.journals) {
         if (j && j.id) journalNameById[j.id] = j.name || j.title || j.id;
       }
+      function flattenRecords(records = []) {
+        const out = [];
+        const walk = (list) => {
+          for (const rec of (list || [])) {
+            out.push(rec);
+            if (Array.isArray(rec?.subrows) && rec.subrows.length) {
+              const nested = rec.subrows.map((sr, i) => ({
+                id: sr?.id || `${rec.id || 'row'}:sub:${i}`,
+                cells: { ...(sr?.cells || {}) },
+                subrows: Array.isArray(sr?.subrows) ? sr.subrows : []
+              }));
+              walk(nested);
+            }
+          }
+        };
+        walk(records);
+        return out;
+      }
+
       for (const dataset of bundle.datasets) {
+        const flatRecords = flattenRecords(dataset.records || []);
         let columns = [];
-        if (dataset.records && dataset.records.length > 0) {
-          const first = dataset.records[0];
+        if (flatRecords.length > 0) {
+          const first = flatRecords[0];
           columns = Object.keys(first.cells ?? {});
-          for (const rec of dataset.records) {
+          for (const rec of flatRecords) {
             for (const k of Object.keys(rec.cells ?? {})) {
               if (!columns.includes(k)) columns.push(k);
             }
@@ -805,7 +844,7 @@ const loc = normalizeLocation({ spaces: state.spaces, journals: state.journals, 
           }
         }
         const rows = [];
-        for (const rec of dataset.records) {
+        for (const rec of flatRecords) {
           const rowObj = {};
           for (const col of columns) {
             rowObj[col] = rec.cells?.[col] ?? '';

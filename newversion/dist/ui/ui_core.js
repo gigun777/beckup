@@ -13,7 +13,6 @@ import './settings/settings_registry.js';
 import './settings/settings_state.js';
 import './settings/features_table_settings.js';
 import './settings/features_uxui_settings.js';
-import './settings/features_backup_settings.js';
 import './settings/settings_init.js';
 // Legacy settings shell modal removed (SWS v2 is the only settings UI)
 
@@ -1429,7 +1428,6 @@ async function openTemplatesManager() {
       items: [
         { label: 'Журнали', description: 'Шаблони, колонки, поля', onOpen: ()=>openJournalsMenu() },
         { label: 'UX|UI', description: '', onOpen: ()=> SW.push({ title:'UX|UI', subtitle:'', content: (ctx)=>ctx.ui.card({title:'UX|UI', description:'В розробці'}) }) },
-        { label: 'Backup', description: '', onOpen: ()=> SW.push({ title:'Backup', subtitle:'', content: (ctx)=>ctx.ui.card({title:'Backup', description:'В розробці'}) }) },
         { label: 'Перенесення', description: 'Шаблони перенесення', onOpen: ()=> openTransferTemplatesScreen() },
       ]
     });
@@ -1645,6 +1643,14 @@ async function openTemplatesManager() {
       });
     }
 
+    async function forceTableRerender() {
+      if (typeof sdoInst?.commit !== 'function') return;
+      await sdoInst.commit((next) => {
+        next.activeSpaceId = next.activeSpaceId;
+        next.activeJournalId = next.activeJournalId;
+      }, []);
+    }
+
     async function exportCurrentJournalJson() {
       const id = getActiveJournalId();
       if (!id) return window.UI?.toast?.show?.('Не обрано журнал (activeJournalId пустий)', { type: 'warning' });
@@ -1678,10 +1684,17 @@ async function openTemplatesManager() {
       // Rewrite journalId
       bundle.datasets = bundle.datasets.map((d) => ({ ...d, journalId: id }));
 
-      const okReplace = await window.UI?.confirm?.('Імпорт JSON', 'Режим: ОК = replace (повністю замінити), Скасувати = merge (додати/оновити).', { okText: 'Replace', cancelText: 'Merge' });
-      const mode = okReplace ? 'replace' : 'merge';
+      let mode = 'replace';
+      if (typeof window.UI?.confirm === 'function') {
+        const okReplace = await window.UI.confirm('Імпорт JSON', 'Режим: ОК = replace (повністю замінити), Скасувати = merge (додати/оновити).', { okText: 'Replace', cancelText: 'Merge' });
+        mode = okReplace ? 'replace' : 'merge';
+      }
       const res = await sdoInst.api.tableStore.importTableData(bundle, { mode });
-      if (res?.applied) window.UI?.toast?.show?.(`Імпорт JSON виконано (${mode})`, { type: 'success' });
+      if (res?.applied) {
+        await forceTableRerender();
+        const count = Array.isArray(res?.datasets) ? res.datasets.length : 0;
+        window.UI?.toast?.show?.(`Імпорт JSON виконано (${mode})${count ? `, datasets: ${count}` : ''}`, { type: 'success' });
+      }
       else window.UI?.toast?.show?.(`Імпорт JSON не виконано: ${(res?.errors || []).join(', ')}`, { type: 'error' });
     }
 
