@@ -927,11 +927,16 @@ const loc = normalizeLocation({ spaces: state.spaces, journals: state.journals, 
       }
       const results = [];
       for (const sheet of sheets) {
-        const jId = journalIdByName[sheet.name] ?? sheet.name;
+        const jId = Object.prototype.hasOwnProperty.call(journalIdByName, sheet.name)
+          ? journalIdByName[sheet.name]
+          : sheet.name;
         const records = sheet.rows.map((row) => {
           const cells = {};
-          for (const [key, value] of Object.entries(row)) {
-            const vStr = String(value ?? '').trim();
+          const rowKeys = Object.keys(row || {});
+          for (let rk = 0; rk < rowKeys.length; rk += 1) {
+            const key = rowKeys[rk];
+            const value = row[key];
+            const vStr = String(value == null ? '' : value).trim();
             if (/^-?\d+(?:\.\d+)?$/.test(vStr)) {
               cells[key] = Number(vStr);
             } else {
