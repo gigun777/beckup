@@ -69,3 +69,23 @@ Returns `{ zipBytes, files, payloads }`.
   - provider adapter for `createSEDO().backup.registerProvider(...)`
   - legacy `oldbeckup` import bridge
   - selective/partial export groups.
+
+
+## Phase 2 (implemented)
+
+### Source-of-truth export/import (DB-first)
+
+New APIs are designed to work from data source adapters (storage/DB), not rendered UI tables:
+
+- `exportFullJsonBackupFromSource({ source, include })`
+- `importFullJsonBackupToSource(payload, { target, mode })`
+- `createNewversionSourceAdapter(storage)`
+
+### Any-Excel import (filename independent)
+
+- `parseAnyXlsx(arrayBuffer)` resolves workbook/sheet via XML relationships, not by file name conventions.
+- `importAnyExcelToRecords({ arrayBuffer, targetColumns, mapping? })` supports:
+  - manual mapping (`sourceCol -> targetKey`)
+  - auto mapping by header names when mapping is omitted.
+
+> Import UI/constructor is intentionally not included yet (per workflow): backend import/export functions first.
