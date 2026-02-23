@@ -770,6 +770,10 @@ export function createModuleManagerUI({ sdo, mount, api }) {
         const count = Array.isArray(res?.datasets) ? res.datasets.length : 0;
         window.UI?.toast?.show?.(`Імпорт JSON виконано (${mode})${count ? `, datasets: ${count}` : ''}`, { type: 'success' });
       }
+      const okReplace = await window.UI?.confirm?.('Імпорт JSON', 'Режим: ОК = replace (повністю замінити), Скасувати = merge (додати/оновити).', { okText: 'Replace', cancelText: 'Merge' });
+      const mode = okReplace ? 'replace' : 'merge';
+      const res = await sdoInst.api.tableStore.importTableData(bundle, { mode });
+      if (res?.applied) window.UI?.toast?.show?.(`Імпорт JSON виконано (${mode})`, { type: 'success' });
       else window.UI?.toast?.show?.(`Імпорт JSON не виконано: ${(res?.errors || []).join(', ')}`, { type: 'error' });
     }
 
