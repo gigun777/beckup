@@ -4,8 +4,25 @@ import { canonicalJsonStringify } from '../utils/canonical_json.js';
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-function toB64(bytes) { return Buffer.from(bytes).toString('base64'); }
-function fromB64(text) { return new Uint8Array(Buffer.from(text, 'base64')); }
+function toB64(bytes) {
+  if (typeof btoa === 'function') {
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 1) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+  if (typeof Buffer !== 'undefined') return Buffer.from(bytes).toString('base64');
+  throw new Error('No base64 encoder available');
+}
+function fromB64(text) {
+  if (typeof atob === 'function') {
+    const bin = atob(text);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i += 1) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  if (typeof Buffer !== 'undefined') return new Uint8Array(Buffer.from(text, 'base64'));
+  throw new Error('No base64 decoder available');
+}
 
 export async function createIntegrity(bundle) {
   const withoutIntegrity = { ...bundle };
