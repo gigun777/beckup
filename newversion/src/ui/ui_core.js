@@ -692,12 +692,30 @@ export function createModuleManagerUI({ sdo, mount, api }) {
         input.style.zIndex = '1000000';
         document.body.appendChild(input);
 
+        let done = false;
+        const onFocusBack = () => {
+          setTimeout(() => {
+            const file = (input.files && input.files[0]) ? input.files[0] : null;
+            finish(file);
+          }, 250);
+        };
+
+        const finish = (file) => {
+          if (done) return;
+          done = true;
+          window.removeEventListener('focus', onFocusBack, true);
+          try { input.remove(); } catch (_) {}
+          resolve(file || null);
         const cleanup = () => {
           try { input.remove(); } catch (_) {}
         };
 
         input.onchange = () => {
           const file = (input.files && input.files[0]) ? input.files[0] : null;
+          finish(file);
+        };
+
+        window.addEventListener('focus', onFocusBack, true);
           cleanup();
           resolve(file);
         };
@@ -717,6 +735,7 @@ export function createModuleManagerUI({ sdo, mount, api }) {
         input.click();
       });
     }
+
 
     async function forceTableRerender() {
       if (typeof sdoInst?.commit !== 'function') return;

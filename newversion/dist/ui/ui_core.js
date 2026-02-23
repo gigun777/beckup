@@ -1606,8 +1606,6 @@ async function openTemplatesManager() {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = accept || '*/*';
-        // Make sure the input is in the DOM (some WebViews require this)
-        // and keep it above other overlays.
         input.style.position = 'fixed';
         input.style.left = '-10000px';
         input.style.top = '0';
@@ -1617,31 +1615,32 @@ async function openTemplatesManager() {
         input.style.zIndex = '1000000';
         document.body.appendChild(input);
 
-        const cleanup = () => {
+        let done = false;
+        const onFocusBack = () => {
+          setTimeout(() => {
+            const file = (input.files && input.files[0]) ? input.files[0] : null;
+            finish(file);
+          }, 250);
+        };
+
+        const finish = (file) => {
+          if (done) return;
+          done = true;
+          window.removeEventListener('focus', onFocusBack, true);
           try { input.remove(); } catch (_) {}
+          resolve(file || null);
         };
 
         input.onchange = () => {
           const file = (input.files && input.files[0]) ? input.files[0] : null;
-          cleanup();
-          resolve(file);
+          finish(file);
         };
 
-        // If the user cancels the picker, many browsers won't fire onchange.
-        // We add a focus fallback to resolve null.
-        const onFocusBack = () => {
-          window.removeEventListener('focus', onFocusBack, true);
-          setTimeout(() => {
-            const file = (input.files && input.files[0]) ? input.files[0] : null;
-            cleanup();
-            resolve(file);
-          }, 0);
-        };
         window.addEventListener('focus', onFocusBack, true);
-
         input.click();
       });
     }
+
 
     async function forceTableRerender() {
       if (typeof sdoInst?.commit !== 'function') return;
