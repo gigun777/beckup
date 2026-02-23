@@ -71,4 +71,7 @@ export {
   suggestColumnMapping,
   buildImportPlan,
   applyImportPlanToRows
+  createBeckupProvider
+  createNewversionSourceAdapter
+  buildExcelJsonFileName
 };
