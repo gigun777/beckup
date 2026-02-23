@@ -423,6 +423,56 @@ export function createSEDO(options = {}) {
     await storage.set(NAV_KEYS.revisionLog, log.slice(-500));
   }
 
+
+  async function importXlsx(file, opts) {
+    if (!file) throw new Error('importXlsx: file is required');
+    const mode = opts && opts.mode ? opts.mode : 'merge';
+    const fileBuffer = file.arrayBuffer ? await file.arrayBuffer() : await new Response(file).arrayBuffer();
+    const entries = await excelUnzipEntries(fileBuffer);
+    const sheets = await excelParseWorkbook(entries);
+    const tableStore = createTableStoreModule();
+    const journalIdByName = Object.create(null);
+    for (let ji = 0; ji < state.journals.length; ji += 1) {
+      const j = state.journals[ji];
+      const nameKey = String(j.name || j.title || '').trim();
+      if (nameKey.length > 0) journalIdByName[nameKey] = j.id;
+    }
+    const results = [];
+    for (let si = 0; si < sheets.length; si += 1) {
+      const sheet = sheets[si] || {};
+      const sheetName = String(sheet.name || '');
+      const hasKnownJournal = Object.prototype.hasOwnProperty.call(journalIdByName, sheetName);
+      const jId = hasKnownJournal ? journalIdByName[sheetName] : sheetName;
+      const rows = Array.isArray(sheet.rows) ? sheet.rows : [];
+      const records = [];
+      for (let ri = 0; ri < rows.length; ri += 1) {
+        const row = rows[ri] || {};
+        const cells = {};
+        const rowKeys = Object.keys(row);
+        for (let rk = 0; rk < rowKeys.length; rk += 1) {
+          const key = rowKeys[rk];
+          const value = row[key];
+          const normalized = String(value == null ? '' : value).trim();
+          const asNumber = Number(normalized);
+          if (normalized !== '' && isFinite(asNumber)) {
+            cells[key] = asNumber;
+          } else {
+            cells[key] = value;
+          }
+        }
+        records.push({
+          id: crypto.randomUUID(),
+          cells: cells,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
+      await tableStore.upsertRecords(storage, jId, records, mode);
+      results.push({ journalId: jId, imported: records.length });
+    }
+    return { imported: true, sheets: results };
+  }
+
   const api = {
     getState: () => deepFreeze(structuredClone(state)),
     dispatch(action) {
