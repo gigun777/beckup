@@ -1,4 +1,5 @@
 import { unzipEntries, entriesMap } from './zip_read.js';
+import { suggestColumnMapping, buildImportPlan, applyImportPlanToRows } from './import_constructor_core.js';
 
 function decodeUtf8(bytes) {
   return new TextDecoder().decode(bytes);
@@ -234,6 +235,19 @@ export async function importAnyExcelToRecords({
       warnings: ['Empty worksheet']
     };
   }
+
+  const header = rows[headerRowIndex] || [];
+
+  const mappingUsed = (Array.isArray(mapping) && mapping.length)
+    ? mapping
+    : suggestColumnMapping({ headerRow: header, targetColumns });
+
+  const { plan, warnings: planWarnings } = buildImportPlan({ mapping: mappingUsed, targetColumns });
+  const records = applyImportPlanToRows({ rows, plan, dataRowStartIndex });
+
+  return {
+    records,
+    mappingUsed: plan,
   const parsed = await parseAnyXlsx(arrayBuffer);
   const rows = parsed.rows;
   if (!rows.length) return { records: [], mappingUsed: [], warnings: ['Empty worksheet'] };
@@ -286,6 +300,7 @@ export async function importAnyExcelToRecords({
       index: parsed.worksheetIndex,
       path: parsed.worksheetPath
     },
+    warnings: plan.length ? planWarnings : [...planWarnings, 'No columns mapped']
     warnings: mappingUsed.length ? [] : ['No columns mapped']
   };
 }

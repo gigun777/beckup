@@ -100,3 +100,13 @@ New APIs are designed to work from data source adapters (storage/DB), not render
 - Added provider factory `createBeckupProvider({ storage })` for integration with `newversion` backup registry (`backup.registerProvider(...)`).
 - Provider export/import is DB-first and reuses `createNewversionSourceAdapter(storage)` internally.
 - This keeps backup logic UI-independent and ready for next steps (manual import constructor UI by command).
+
+
+## Phase 5 (implemented)
+
+- Added backend import-constructor core (no UI):
+  - `suggestColumnMapping({ headerRow, targetColumns, aliases })`
+  - `buildImportPlan({ mapping, targetColumns })`
+  - `applyImportPlanToRows({ rows, plan, dataRowStartIndex })`
+- `importAnyExcelToRecords(...)` now uses the constructor core internally (manual mapping or suggested mapping).
+- This prepares the future manual mapping modal without coupling import logic to UI.
