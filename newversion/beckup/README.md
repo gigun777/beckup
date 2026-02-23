@@ -83,6 +83,8 @@ New APIs are designed to work from data source adapters (storage/DB), not render
 
 ### Any-Excel import (filename independent)
 
+- `parseAnyXlsx(arrayBuffer, { worksheet })` resolves workbook/sheet via XML relationships, not by file name conventions (worksheet can be selected by `name` or `index`).
+- `importAnyExcelToRecords({ arrayBuffer, targetColumns, mapping?, worksheet? })` supports:
 - `parseAnyXlsx(arrayBuffer)` resolves workbook/sheet via XML relationships, not by file name conventions.
 - `importAnyExcelToRecords({ arrayBuffer, targetColumns, mapping? })` supports:
   - manual mapping (`sourceCol -> targetKey`)
@@ -91,3 +93,10 @@ New APIs are designed to work from data source adapters (storage/DB), not render
 > Import UI/constructor is intentionally not included yet (per workflow): backend import/export functions first.
 
 - JSON import in newversion adapter supports partial recovery fallback from legacy `rows[].exportData` / `rows[].data` when `rowsV2` is absent.
+
+
+## Phase 4 (implemented)
+
+- Added provider factory `createBeckupProvider({ storage })` for integration with `newversion` backup registry (`backup.registerProvider(...)`).
+- Provider export/import is DB-first and reuses `createNewversionSourceAdapter(storage)` internally.
+- This keeps backup logic UI-independent and ready for next steps (manual import constructor UI by command).

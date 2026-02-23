@@ -1,5 +1,37 @@
 import { NAV_KEYS, loadNavigationState } from '../../src/storage/db_nav.js';
 
+function toColumnsFromPayload(payload) {
+  if (!Array.isArray(payload?.sheet?.columns)) return [];
+  return payload.sheet.columns.map((c) => c?.name || c?.key).filter(Boolean);
+}
+
+function recordsFromRowsV2(rowsV2, columns) {
+  return (rowsV2 || []).map((r) => {
+    const cells = {};
+    for (let i = 0; i < columns.length; i += 1) cells[columns[i]] = r.cells?.[i] ?? '';
+    return {
+      id: r.id || crypto.randomUUID(),
+      cells,
+      subrows: Array.isArray(r.subrows) ? r.subrows : [],
+      createdAt: r.createdAt || null,
+      updatedAt: r.updatedAt || null
+    };
+  });
+}
+
+function recordsFromLegacyRows(rows) {
+  return (rows || []).map((r) => {
+    const src = r?.exportData || r?.data || {};
+    return {
+      id: r?.id || crypto.randomUUID(),
+      cells: { ...src },
+      subrows: Array.isArray(r?.subrows) ? r.subrows : [],
+      createdAt: r?.createdAt || null,
+      updatedAt: r?.updatedAt || null
+    };
+  });
+}
+
 /**
  * Create source/target adapter for newversion storage.
  * This ensures backup/export reads from the primary source (storage), not UI-rendered tables.
@@ -9,6 +41,50 @@ export function createNewversionSourceAdapter(storage, { tableDatasetPrefix = 't
     throw new Error('storage with get/set is required');
   }
 
+  async function listJournals() {
+    const nav = await loadNavigationState(storage);
+    return Array.isArray(nav.journals) ? nav.journals : [];
+  }
+
+  async function resolveJournal(journalKeyOrId) {
+    const journals = await listJournals();
+    return journals.find((j) => (j.key === journalKeyOrId || j.id === journalKeyOrId)) || null;
+  }
+
+  function datasetKey(journalId) {
+    return `${tableDatasetPrefix}${journalId}`;
+  }
+
+  async function saveRecordsToJournal(journalId, incomingRecords, { mode = 'merge' } = {}) {
+    const key = datasetKey(journalId);
+    const current = await storage.get(key);
+    const currentRecords = Array.isArray(current?.records) ? current.records : [];
+
+    let records;
+    if (mode === 'replace') {
+      records = incomingRecords;
+    } else {
+      const byId = new Map(currentRecords.map((r) => [r.id, r]));
+      for (const r of incomingRecords) byId.set(r.id, r);
+      records = [...byId.values()];
+    }
+
+    await storage.set(key, {
+      ...(current || {}),
+      journalId,
+      schema: current?.schema || null,
+      records,
+      merges: Array.isArray(current?.merges) ? current.merges : []
+    });
+  }
+
+  return {
+    async listJournals() {
+      return listJournals();
+    },
+
+    async loadJournalSchema(journalId) {
+      const dataset = await storage.get(datasetKey(journalId));
   return {
     async listJournals() {
       const nav = await loadNavigationState(storage);
@@ -22,6 +98,7 @@ export function createNewversionSourceAdapter(storage, { tableDatasetPrefix = 't
     },
 
     async loadJournalRecords(journalId) {
+      const dataset = await storage.get(datasetKey(journalId));
       const dataset = await storage.get(`${tableDatasetPrefix}${journalId}`);
       return Array.isArray(dataset?.records) ? dataset.records : [];
     },
@@ -48,6 +125,25 @@ export function createNewversionSourceAdapter(storage, { tableDatasetPrefix = 't
     },
 
     async saveJournalPayload(journalKey, payload, { mode = 'merge' } = {}) {
+      const journal = await resolveJournal(journalKey);
+      const journalId = journal?.id || journalKey;
+
+      const rowsV2 = Array.isArray(payload?.rowsV2) ? payload.rowsV2 : [];
+      const columns = toColumnsFromPayload(payload);
+
+      let incomingRecords = recordsFromRowsV2(rowsV2, columns);
+      if (!incomingRecords.length && Array.isArray(payload?.rows)) {
+        incomingRecords = recordsFromLegacyRows(payload.rows);
+      }
+
+      await saveRecordsToJournal(journalId, incomingRecords, { mode });
+    },
+
+    async saveJournalRecords(journalKeyOrId, records, { mode = 'merge' } = {}) {
+      const journal = await resolveJournal(journalKeyOrId);
+      const journalId = journal?.id || journalKeyOrId;
+      const incoming = Array.isArray(records) ? records : [];
+      await saveRecordsToJournal(journalId, incoming, { mode });
       const nav = await loadNavigationState(storage);
       const journal = (nav.journals || []).find((j) => (j.key === journalKey || j.id === journalKey));
       const journalId = journal?.id || journalKey;

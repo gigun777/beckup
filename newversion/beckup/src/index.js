@@ -8,6 +8,7 @@ import {
 import { exportFullJsonBackupFromSource, importFullJsonBackupToSource } from './json_io.js';
 import { parseAnyXlsx, importAnyExcelToRecords } from './excel_io.js';
 import { createNewversionSourceAdapter } from './source_newversion.js';
+import { createBeckupProvider } from './provider_newversion.js';
 
 function toBytes(x) {
   if (x instanceof Uint8Array) return x;
@@ -64,6 +65,8 @@ export {
   importFullJsonBackupToSource,
   parseAnyXlsx,
   importAnyExcelToRecords,
+  createNewversionSourceAdapter,
+  createBeckupProvider
   createNewversionSourceAdapter
   buildExcelJsonFileName
 };
