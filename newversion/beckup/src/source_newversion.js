@@ -57,6 +57,7 @@ export function createNewversionSourceAdapter(storage, { tableDatasetPrefix = 't
       const columns = Array.isArray(payload?.sheet?.columns) ? payload.sheet.columns.map((c) => c.name || c.key) : [];
 
       let incomingRecords = rowsV2.map((r) => {
+      const incomingRecords = rowsV2.map((r) => {
         const cells = {};
         for (let i = 0; i < columns.length; i += 1) cells[columns[i]] = r.cells?.[i] ?? '';
         return {
