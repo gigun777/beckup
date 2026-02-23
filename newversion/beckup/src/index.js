@@ -74,4 +74,8 @@ export {
   applyImportPlanToRows,
   normalizeBackupBundle,
   normalizeJournalPayload
+  applyImportPlanToRows
+  createBeckupProvider
+  createNewversionSourceAdapter
+  buildExcelJsonFileName
 };
