@@ -973,15 +973,15 @@ const loc = normalizeLocation({ spaces: state.spaces, journals: state.journals, 
 
     // Import records from an XLSX file. Each sheet will be imported into a journal matching either the sheet name or a journal with that name.
     importXlsx: importXlsx,
-    on(event, handler) {
+    on: function(event, handler) {
       const arr = listeners.get(event) ?? [];
       arr.push(handler);
       listeners.set(event, arr);
-      return () => instance.off(event, handler);
+      return function() { return instance.off(event, handler); };
     },
-    off(event, handler) {
+    off: function(event, handler) {
       const arr = listeners.get(event) ?? [];
-      listeners.set(event, arr.filter((h) => h !== handler));
+      listeners.set(event, arr.filter(function(h) { return h !== handler; }));
     }
   };
 
